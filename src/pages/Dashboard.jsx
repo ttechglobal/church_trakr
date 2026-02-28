@@ -5,7 +5,7 @@ import { SetIco } from "../components/ui/Icons";
 
 export default function Dashboard({ groups, members, attendanceHistory }) {
   const navigate = useNavigate();
-  const { church } = useAuth();
+  const { church, user } = useAuth();
 
   const greeting = () => {
     const h = new Date().getHours();
@@ -13,6 +13,11 @@ export default function Dashboard({ groups, members, attendanceHistory }) {
     if (h < 17) return "Good afternoon";
     return "Good evening";
   };
+
+  // Use admin_name from church row, or user metadata, or fall back to "Pastor"
+  const adminName = church?.admin_name
+    || user?.user_metadata?.full_name
+    || "Pastor";
 
   // Real attendance stat from history
   const totalSessions = attendanceHistory?.length || 0;
@@ -55,7 +60,7 @@ export default function Dashboard({ groups, members, attendanceHistory }) {
       {/* ── Page header with settings shortcut ── */}
       <div className="ph" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <h1>{greeting()}, Pastor 🙏</h1>
+          <h1>{greeting()}, {adminName} 🙏</h1>
           <p>{church?.name ?? "ChurchTrackr"} · Overview</p>
         </div>
         <button

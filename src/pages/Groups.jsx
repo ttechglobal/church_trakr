@@ -158,13 +158,32 @@ function ImportModal({ group, onClose, onImport }) {
   const parseXLSX = (file) => new Promise((resolve, reject) => {
     const process = (ab) => {
       try {
-        const wb = window.XLSX.read(ab, { type: "array" });
+        // cellDates:true converts Excel date serials to JS Date objects
+        const wb = window.XLSX.read(ab, { type: "array", cellDates: true, dateNF: "yyyy-mm-dd" });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const aoa = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+        // raw:true keeps numbers as numbers (so we can detect date serials),
+        // but we'll manually stringify everything after
+        const aoa = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: true });
         if (aoa.length < 2) { reject(new Error("Spreadsheet appears empty.")); return; }
         const headers = aoa[0].map(h => String(h).trim()).filter(Boolean);
+
+        const toStr = (val) => {
+          if (val === null || val === undefined) return "";
+          // JS Date object (from cellDates:true)
+          if (val instanceof Date) {
+            if (isNaN(val.getTime())) return "";
+            const y = val.getFullYear();
+            const m = String(val.getMonth() + 1).padStart(2, "0");
+            const d = String(val.getDate()).padStart(2, "0");
+            return `${y}-${m}-${d}`;
+          }
+          return String(val).trim();
+        };
+
         const rows = aoa.slice(1).map(row => {
-          const obj = {}; headers.forEach((h,i) => { obj[h] = String(row[i] ?? "").trim(); }); return obj;
+          const obj = {};
+          headers.forEach((h, i) => { obj[h] = toStr(row[i]); });
+          return obj;
         }).filter(r => Object.values(r).some(v => v));
         resolve({ headers, rows });
       } catch(e) { reject(new Error("Could not read spreadsheet. Is it a valid .xlsx file?")); }
@@ -591,7 +610,7 @@ function SessionReportView({ session, group, onBack, showToast }) {
 // ── Group Detail ──────────────────────────────────────────────────────────────
 const DEFAULT_BDAY_MSG = "Dear {name}, wishing you a wonderful birthday filled with God's blessings! 🎂🙏 From all of us at {group}.";
 
-function GroupDetail({ group, groups, members, setMembers, attendanceHistory, onBack, showToast }) {
+function GroupDetail({ group, groups, members, addMember, editMember, removeMember, bulkAddMembers, attendanceHistory, onBack, showToast }) {
   const [tab, setTab] = useState("members"); // "members" | "reports" | "birthdays"
   const [addModal, setAddModal] = useState(false);
   const [importModal, setImportModal] = useState(false);
@@ -648,18 +667,27 @@ function GroupDetail({ group, groups, members, setMembers, attendanceHistory, on
     return getNext(a) - getNext(b);
   });
 
-  const handleAdd = ({ name, phone, address, birthday }) => {
+  const handleAdd = async ({ name, phone, address, birthday }) => {
     const ex = members.find(m => m.phone === phone);
-    if (ex) setMembers(ms => ms.map(m => m.id === ex.id ? { ...m, groupIds: [...new Set([...(m.groupIds || []), group.id])] } : m));
-    else setMembers(ms => [...ms, { id: uid(), name, phone, address, birthday, groupIds: [group.id], status: "active", church_id: group.church_id }]);
-    setAddModal(false); showToast("Member added!");
+    if (ex) {
+      const { error } = await editMember(ex.id, { groupIds: [...new Set([...(ex.groupIds || []), group.id])] });
+      if (error) { showToast("Failed to add member ❌"); return; }
+    } else {
+      const { error } = await addMember({ name, phone, address, birthday, groupIds: [group.id], status: "active" });
+      if (error) { showToast("Failed to add member ❌"); return; }
+    }
+    setAddModal(false); showToast("Member added! ✅");
   };
-  const handleRemove = id => {
-    setMembers(ms => ms.map(m => m.id === id ? { ...m, groupIds: (m.groupIds || []).filter(g => g !== group.id) } : m));
+  const handleRemove = async id => {
+    const mem = members.find(m => m.id === id);
+    if (!mem) return;
+    const { error } = await editMember(id, { groupIds: (mem.groupIds || []).filter(g => g !== group.id) });
+    if (error) { showToast("Failed to remove member ❌"); return; }
     setRemoveId(null); showToast("Member removed from group.");
   };
-  const handleSaveMember = updated => {
-    setMembers(ms => ms.map(m => m.id === updated.id ? updated : m));
+  const handleSaveMember = async updated => {
+    const { error } = await editMember(updated.id, updated);
+    if (error) { showToast("Failed to update member ❌"); return; }
     setViewMember(members.find(m => m.id === updated.id) || updated);
     setEditingMember(false); showToast("Member updated!");
   };
@@ -892,12 +920,17 @@ function GroupDetail({ group, groups, members, setMembers, attendanceHistory, on
 
       {/* ── Modals ── */}
       {addModal && <AddMemberModal onClose={() => setAddModal(false)} onAdd={handleAdd} groupName={group.name} />}
-      {importModal && <ImportModal group={group} onClose={() => setImportModal(false)} onImport={importedMembers => {
-        importedMembers.forEach(({ name, phone, address, birthday }) => {
+      {importModal && <ImportModal group={group} onClose={() => setImportModal(false)} onImport={async importedMembers => {
+        let added = 0;
+        for (const { name, phone, address, birthday } of importedMembers) {
           const ex = members.find(m => m.phone === phone);
-          if (ex) setMembers(ms => ms.map(m => m.id === ex.id ? { ...m, groupIds: [...new Set([...(m.groupIds || []), group.id])] } : m));
-          else setMembers(ms => [...ms, { id: uid(), name, phone, address: address || "", birthday: birthday || "", groupIds: [group.id], status: "active", church_id: group.church_id }]);
-        });
+          if (ex) {
+            await editMember(ex.id, { groupIds: [...new Set([...(ex.groupIds || []), group.id])] });
+          } else {
+            await addMember({ name, phone, address: address || "", birthday: birthday || "", groupIds: [group.id], status: "active" });
+            added++;
+          }
+        }
         showToast(`${importedMembers.length} members imported into ${group.name}! ✅`);
       }} />}
       {removeId && (
@@ -930,21 +963,22 @@ function GroupDetail({ group, groups, members, setMembers, attendanceHistory, on
 }
 
 // ── Groups List ───────────────────────────────────────────────────────────────
-export default function Groups({ groups, setGroups, members, setMembers, attendanceHistory, showToast }) {
+export default function Groups({ groups, addGroup, editGroup, removeGroup, members, addMember, editMember, removeMember, bulkAddMembers, attendanceHistory, showToast }) {
   const [viewGrp, setViewGrp] = useState(null);
   const [addModal, setAddModal] = useState(false);
   const [delConfirm, setDelConfirm] = useState(null);
   const [f, setF] = useState({ name: "", leader: "" });
 
-  const addGroup = () => {
+  const handleAddGroup = async () => {
     if (!f.name) return;
-    setGroups(g => [...g, { id: uid(), name: f.name, leader: f.leader, church_id: "church_001" }]);
-    setAddModal(false); setF({ name: "", leader: "" }); showToast("Group created!");
+    const { error } = await addGroup({ name: f.name, leader: f.leader });
+    if (error) { showToast("Failed to create group ❌"); return; }
+    setAddModal(false); setF({ name: "", leader: "" }); showToast("Group created! ✅");
   };
 
   if (viewGrp) {
     const live = groups.find(g => g.id === viewGrp.id) || viewGrp;
-    return <GroupDetail group={live} groups={groups} members={members} setMembers={setMembers} attendanceHistory={attendanceHistory} onBack={() => setViewGrp(null)} showToast={showToast} />;
+    return <GroupDetail group={live} groups={groups} members={members} addMember={addMember} editMember={editMember} removeMember={removeMember} bulkAddMembers={bulkAddMembers} attendanceHistory={attendanceHistory} onBack={() => setViewGrp(null)} showToast={showToast} />;
   }
 
   // Church-wide birthday check for today
@@ -1007,7 +1041,7 @@ export default function Groups({ groups, setGroups, members, setMembers, attenda
             <div className="fg"><label className="fl">Leader</label><input className="fi" placeholder="Leader's name" value={f.leader} onChange={e => setF(x => ({ ...x, leader: e.target.value }))} /></div>
             <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
               <button className="btn bg" style={{ flex: 1 }} onClick={() => setAddModal(false)}>Cancel</button>
-              <button className="btn bp" style={{ flex: 1 }} onClick={addGroup}>Create</button>
+              <button className="btn bp" style={{ flex: 1 }} onClick={handleAddGroup}>Create</button>
             </div>
           </div>
         </Modal>
@@ -1017,7 +1051,7 @@ export default function Groups({ groups, setGroups, members, setMembers, attenda
           <p style={{ color: "var(--muted)", marginBottom: 20, fontSize: 14 }}>Members remain. The group will be permanently removed.</p>
           <div style={{ display: "flex", gap: 10 }}>
             <button className="btn bg" style={{ flex: 1 }} onClick={() => setDelConfirm(null)}>Cancel</button>
-            <button className="btn bd" style={{ flex: 1 }} onClick={() => { setGroups(g => g.filter(x => x.id !== delConfirm)); setDelConfirm(null); showToast("Group deleted."); }}>Delete</button>
+            <button className="btn bd" style={{ flex: 1 }} onClick={async () => { const { error } = await removeGroup(delConfirm); if (error) { showToast("Failed to delete ❌"); return; } setDelConfirm(null); showToast("Group deleted."); }}>Delete</button>
           </div>
         </Modal>
       )}
