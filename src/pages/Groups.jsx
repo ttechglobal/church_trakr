@@ -104,6 +104,7 @@ function ImportModal({ group, onClose, onImport }) {
   const [fileName, setFileName] = useState("");
   const [parseError, setParseError] = useState("");
   const [parsing, setParsing] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [mp, setMp] = useState({ fullName: "", firstName: "", lastName: "", phone: "", address: "", birthday: "" });
   const NONE = "— skip —";
 
@@ -201,41 +202,8 @@ function ImportModal({ group, onClose, onImport }) {
     reader.readAsArrayBuffer(file);
   });
 
-  // ── DOCX parser via mammoth (loaded from CDN on demand) ──────────────────
-  const parseDocx = (file) => new Promise((resolve, reject) => {
-    const extract = (ab) => {
-      window.mammoth.extractRawText({ arrayBuffer: ab })
-        .then(res => {
-          const lines = res.value.split(/\n/).map(l => l.trim()).filter(Boolean);
-          if (lines.length < 2) { reject(new Error("Word document is empty or has no readable text.")); return; }
-          const splitRow = l => l.includes("\t") ? l.split("\t").map(c=>c.trim()) : l.split(/\s{2,}/).map(c=>c.trim()).filter(Boolean);
-          const allRows = lines.map(splitRow);
-          const maxCols = Math.max(...allRows.map(r=>r.length));
-          if (maxCols >= 2) {
-            const headers = allRows[0].map((h,i) => h || `Col${i+1}`);
-            const rows = allRows.slice(1).map(cols => {
-              const obj={}; headers.forEach((h,i)=>{obj[h]=cols[i]||"";}); return obj;
-            }).filter(r => Object.values(r).some(v=>v));
-            resolve({ headers, rows });
-          } else {
-            resolve({ headers: ["Name"], rows: lines.map(l=>({ Name: l })) });
-          }
-        })
-        .catch(() => reject(new Error("Could not read Word document. Make sure it's a .docx file (not .doc).")));
-    };
-    const reader = new FileReader();
-    reader.onload = e => {
-      const ab = e.target.result;
-      if (window.mammoth) { extract(ab); return; }
-      const s = document.createElement("script");
-      s.src = "https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js";
-      s.onload = () => extract(ab);
-      s.onerror = () => reject(new Error("Could not load Word document reader. Check internet connection."));
-      document.head.appendChild(s);
-    };
-    reader.onerror = () => reject(new Error("Failed to read file."));
-    reader.readAsArrayBuffer(file);
-  });
+  // ── DOCX parser removed — Word docs are not reliably parseable for member data.
+  // Users should export from Word to CSV/Excel first.
 
   // ── Main file handler ─────────────────────────────────────────────────────
   const handleFile = async (file) => {
@@ -251,12 +219,18 @@ function ImportModal({ group, onClose, onImport }) {
         result = parseCSVText(text);
       } else if (ext === "xlsx" || ext === "xls") {
         result = await parseXLSX(file);
-      } else if (ext === "docx") {
-        result = await parseDocx(file);
-      } else if (ext === "doc") {
-        throw new Error("Old .doc format isn't supported. Open in Word → Save As → .docx");
+      } else if (ext === "docx" || ext === "doc") {
+        throw new Error(
+          "Word documents (.docx/.doc) are not supported for import.\n" +
+          "Please open the document in Word or Google Docs, then:\n" +
+          "• File → Download as → CSV (.csv)\n" +
+          "• Or copy the data into Excel and save as .xlsx"
+        );
       } else {
-        throw new Error("Please use .csv, .xlsx (Excel), or .docx (Word)");
+        throw new Error(
+          `".${ext}" files are not supported.\n` +
+          "Please upload a CSV (.csv) or Excel (.xlsx) file."
+        );
       }
       if (!result.headers.length || !result.rows.length) throw new Error("No data found. Check the file has headers and at least one row.");
       setParsedHeaders(result.headers);
@@ -277,14 +251,16 @@ function ImportModal({ group, onClose, onImport }) {
     birthday: mp.birthday !== NONE ? row[mp.birthday] || "" : ""
   })).filter(r => r.name || r.phone);
 
-  const doImport = () => {
+  const doImport = async () => {
     const mems = parsedRows.map(row => ({
       name: nameMode === "full" ? (row[mp.fullName] || "").trim() : `${row[mp.firstName] || ""} ${row[mp.lastName] || ""}`.trim(),
       phone: (row[mp.phone] || "").trim(),
       address: mp.address !== NONE ? (row[mp.address] || "").trim() : "",
       birthday: mp.birthday !== NONE ? normBirthday((row[mp.birthday] || "").trim()) : ""
     })).filter(r => r.name && r.phone);
-    onImport(mems);
+    setImporting(true);
+    await onImport(mems);
+    setImporting(false);
     setStep(3);
   };
 
@@ -307,6 +283,23 @@ function ImportModal({ group, onClose, onImport }) {
       <Prog />
       {step === 0 && (
         <div>
+          {/* Upfront format guidance */}
+          <div style={{ background: "linear-gradient(135deg,#eef4ff,#e8f0ff)", border: "1.5px solid #c7d9ff", borderRadius: 12, padding: "14px 16px", marginBottom: 14 }}>
+            <p style={{ fontWeight: 700, fontSize: 13, color: "#2a4a8a", marginBottom: 8 }}>📋 Required file format</p>
+            <p style={{ fontSize: 13, color: "#2a4a8a", lineHeight: 1.7, marginBottom: 8 }}>
+              Upload a <strong>CSV (.csv)</strong> or <strong>Excel (.xlsx)</strong> file.<br/>
+              The <strong>first row must be column headers</strong> (e.g. Name, Phone, Address).
+            </p>
+            <div style={{ background: "#fff", borderRadius: 8, padding: "10px 12px", fontSize: 12, color: "#444", fontFamily: "monospace", lineHeight: 1.8 }}>
+              <div style={{ fontWeight: 700 }}>Name, Phone, Address, Birthday</div>
+              <div>Adaeze Okafor, 08012345678, Ikeja Lagos, 1990-05-21</div>
+              <div>James Eze, 07098765432, Lekki, </div>
+            </div>
+            <p style={{ fontSize: 12, color: "#555", marginTop: 8 }}>
+              💡 <strong>Using Word/Google Docs?</strong> Go to File → Download as → CSV, then upload that file.
+            </p>
+          </div>
+
           <label style={{ display: "block", cursor: parsing ? "wait" : "pointer" }}>
             <div className="upz" style={{ opacity: parsing ? 0.7 : 1 }}>
               <UpIco />
@@ -314,26 +307,20 @@ function ImportModal({ group, onClose, onImport }) {
                 {parsing ? "Reading file…" : fileName || "Tap to upload your members list"}
               </div>
               <div style={{ fontSize: 13, color: "var(--muted)" }}>
-                {parsing ? "Please wait…" : fileName ? "Tap to change file" : ".csv  ·  .xlsx  ·  .docx"}
+                {parsing ? "Please wait…" : fileName ? "Tap to change file" : "CSV (.csv) or Excel (.xlsx) only"}
               </div>
             </div>
-            <input type="file" accept=".csv,.txt,.xlsx,.xls,.docx,.doc" style={{ display: "none" }}
+            <input type="file" accept=".csv,.txt,.xlsx,.xls" style={{ display: "none" }}
               onChange={e => handleFile(e.target.files[0])} disabled={parsing} />
           </label>
           {parseError && (
             <div style={{ background: "#fce8e8", border: "1px solid #f5c8c8", borderRadius: 10, padding: "12px 14px", marginTop: 12 }}>
-              <p style={{ color: "var(--danger)", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>⚠️ Could not read file</p>
-              <p style={{ color: "var(--danger)", fontSize: 13 }}>{parseError}</p>
+              <p style={{ color: "var(--danger)", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>⚠️ Could not read file</p>
+              {parseError.split("\n").map((line, i) => (
+                <p key={i} style={{ color: "var(--danger)", fontSize: 13, marginBottom: 2 }}>{line}</p>
+              ))}
             </div>
           )}
-          <div style={{ marginTop: 14, background: "var(--surface2)", borderRadius: 10, padding: "12px 14px" }}>
-            <p style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginBottom: 6 }}>💡 Tips</p>
-            <p style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.7 }}>
-              <strong>Excel (.xlsx):</strong> Any spreadsheet with headers works.<br/>
-              <strong>Word (.docx):</strong> Use a table — first row should be column names.<br/>
-              <strong>CSV:</strong> First row = headers. Comma, tab, or semicolon separated.
-            </p>
-          </div>
         </div>
       )}
       {step === 1 && (
@@ -415,8 +402,10 @@ function ImportModal({ group, onClose, onImport }) {
           ))}
           <p style={{ fontSize: 13, color: "var(--muted)", margin: "12px 0 20px" }}>All {parsedRows.length} rows → <strong>{group.name}</strong></p>
           <div style={{ display: "flex", gap: 10 }}>
-            <button className="btn bg" style={{ flex: 1 }} onClick={() => setStep(1)}>Back</button>
-            <button className="btn bs" style={{ flex: 1 }} onClick={doImport}>Import {parsedRows.length} Members ✓</button>
+            <button className="btn bg" style={{ flex: 1 }} onClick={() => setStep(1)} disabled={importing}>Back</button>
+            <button className="btn bs" style={{ flex: 1 }} onClick={doImport} disabled={importing}>
+              {importing ? "Importing…" : `Import ${parsedRows.length} Members ✓`}
+            </button>
           </div>
         </div>
       )}
@@ -921,17 +910,23 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
       {/* ── Modals ── */}
       {addModal && <AddMemberModal onClose={() => setAddModal(false)} onAdd={handleAdd} groupName={group.name} />}
       {importModal && <ImportModal group={group} onClose={() => setImportModal(false)} onImport={async importedMembers => {
-        let added = 0;
+        let added = 0, failed = 0;
         for (const { name, phone, address, birthday } of importedMembers) {
           const ex = members.find(m => m.phone === phone);
           if (ex) {
-            await editMember(ex.id, { groupIds: [...new Set([...(ex.groupIds || []), group.id])] });
+            const { error } = await editMember(ex.id, { groupIds: [...new Set([...(ex.groupIds || []), group.id])] });
+            if (error) failed++;
           } else {
-            await addMember({ name, phone, address: address || "", birthday: birthday || "", groupIds: [group.id], status: "active" });
-            added++;
+            const { error } = await addMember({ name, phone, address: address || "", birthday: birthday || "", groupIds: [group.id], status: "active" });
+            if (error) failed++;
+            else added++;
           }
         }
-        showToast(`${importedMembers.length} members imported into ${group.name}! ✅`);
+        if (failed > 0) {
+          showToast(`⚠️ ${added} imported, ${failed} failed — check your connection`);
+        } else {
+          showToast(`${importedMembers.length} members imported into ${group.name}! ✅`);
+        }
       }} />}
       {removeId && (
         <Modal title="Remove from Group?" onClose={() => setRemoveId(null)}>
@@ -968,11 +963,23 @@ export default function Groups({ groups, addGroup, editGroup, removeGroup, membe
   const [addModal, setAddModal] = useState(false);
   const [delConfirm, setDelConfirm] = useState(null);
   const [f, setF] = useState({ name: "", leader: "" });
+  const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const handleAddGroup = async () => {
-    if (!f.name) return;
-    const { error } = await addGroup({ name: f.name, leader: f.leader });
-    if (error) { showToast("Failed to create group ❌"); return; }
+    if (!f.name.trim()) return;
+    setCreating(true);
+    const { error } = await addGroup({ name: f.name.trim(), leader: f.leader.trim() });
+    setCreating(false);
+    if (error) {
+      const msg = error.message || "";
+      if (msg.includes("violates row-level") || msg.includes("permission") || msg.includes("policy")) {
+        showToast("Permission error — make sure you're signed in properly ❌");
+      } else {
+        showToast(`Failed to create group: ${msg || "unknown error"} ❌`);
+      }
+      return;
+    }
     setAddModal(false); setF({ name: "", leader: "" }); showToast("Group created! ✅");
   };
 
@@ -1035,23 +1042,31 @@ export default function Groups({ groups, addGroup, editGroup, removeGroup, membe
       </div>
 
       {addModal && (
-        <Modal title="New Group" onClose={() => setAddModal(false)}>
+        <Modal title="New Group" onClose={() => { if (!creating) { setAddModal(false); setF({ name: "", leader: "" }); } }}>
           <div className="fstack">
-            <div className="fg"><label className="fl">Group Name *</label><input className="fi" placeholder="e.g. Youth Ministry" value={f.name} onChange={e => setF(x => ({ ...x, name: e.target.value }))} /></div>
-            <div className="fg"><label className="fl">Leader</label><input className="fi" placeholder="Leader's name" value={f.leader} onChange={e => setF(x => ({ ...x, leader: e.target.value }))} /></div>
+            <div className="fg"><label className="fl">Group Name *</label><input className="fi" placeholder="e.g. Youth Ministry" value={f.name} onChange={e => setF(x => ({ ...x, name: e.target.value }))} onKeyDown={e => e.key === "Enter" && handleAddGroup()} autoFocus /></div>
+            <div className="fg"><label className="fl">Leader</label><input className="fi" placeholder="Leader's name" value={f.leader} onChange={e => setF(x => ({ ...x, leader: e.target.value }))} onKeyDown={e => e.key === "Enter" && handleAddGroup()} /></div>
             <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
-              <button className="btn bg" style={{ flex: 1 }} onClick={() => setAddModal(false)}>Cancel</button>
-              <button className="btn bp" style={{ flex: 1 }} onClick={handleAddGroup}>Create</button>
+              <button className="btn bg" style={{ flex: 1 }} onClick={() => { setAddModal(false); setF({ name: "", leader: "" }); }} disabled={creating}>Cancel</button>
+              <button className="btn bp" style={{ flex: 1 }} onClick={handleAddGroup} disabled={creating || !f.name.trim()}>
+                {creating ? "Creating…" : "Create"}
+              </button>
             </div>
           </div>
         </Modal>
       )}
       {delConfirm && (
-        <Modal title="Delete Group?" onClose={() => setDelConfirm(null)}>
+        <Modal title="Delete Group?" onClose={() => { if (!deleting) setDelConfirm(null); }}>
           <p style={{ color: "var(--muted)", marginBottom: 20, fontSize: 14 }}>Members remain. The group will be permanently removed.</p>
           <div style={{ display: "flex", gap: 10 }}>
-            <button className="btn bg" style={{ flex: 1 }} onClick={() => setDelConfirm(null)}>Cancel</button>
-            <button className="btn bd" style={{ flex: 1 }} onClick={async () => { const { error } = await removeGroup(delConfirm); if (error) { showToast("Failed to delete ❌"); return; } setDelConfirm(null); showToast("Group deleted."); }}>Delete</button>
+            <button className="btn bg" style={{ flex: 1 }} onClick={() => setDelConfirm(null)} disabled={deleting}>Cancel</button>
+            <button className="btn bd" style={{ flex: 1 }} disabled={deleting} onClick={async () => {
+              setDeleting(true);
+              const { error } = await removeGroup(delConfirm);
+              setDeleting(false);
+              if (error) { showToast("Failed to delete ❌"); return; }
+              setDelConfirm(null); showToast("Group deleted.");
+            }}>{deleting ? "Deleting…" : "Delete"}</button>
           </div>
         </Modal>
       )}

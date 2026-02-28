@@ -159,6 +159,8 @@ export default function Attendance({ groups, members, attendanceHistory, setAtte
   // sessionId being edited (for update vs insert)
   const [editingSessionId, setEditingSessionId] = useState(null);
 
+  const [saving, setSaving] = useState(false);
+
   const startMarking = (g) => {
     setSelGrp(g);
     setSearch("");
@@ -197,8 +199,18 @@ export default function Attendance({ groups, members, attendanceHistory, setAtte
       date:    selDate,
       records: recs.map(r => ({ ...r })),
     };
+    setSaving(true);
     const { data, error } = await saveAttendance(session);
-    if (error) { showToast("Failed to save — " + error.message); return; }
+    setSaving(false);
+    if (error) {
+      const msg = error.message || "";
+      if (msg.includes("fetch") || msg.includes("network")) {
+        showToast("Network error — please check your connection and try again ❌");
+      } else {
+        showToast("Failed to save — " + (msg || "unknown error"));
+      }
+      return;
+    }
     const savedId = data?.id || editingSessionId;
     if (!editingSessionId && savedId) setEditingSessionId(savedId);
     showToast("Attendance saved! ✅");
@@ -434,8 +446,8 @@ export default function Attendance({ groups, members, attendanceHistory, setAtte
             <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>Unmarked</div>
           </div>
         </div>
-        <button className="btn bp" style={{ width: "100%", borderRadius: 12, padding: "14px", fontSize: 16 }} onClick={save}>
-          Save Attendance
+        <button className="btn bp" style={{ width: "100%", borderRadius: 12, padding: "14px", fontSize: 16 }} onClick={save} disabled={saving}>
+          {saving ? "Saving…" : "Save Attendance"}
         </button>
       </div>
     </div>

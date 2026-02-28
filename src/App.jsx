@@ -1,7 +1,6 @@
 // src/App.jsx
 import { useState, useEffect, useCallback } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider } from "./contexts/AuthContext";
 import { useAuth } from "./hooks/useAuth";
 import { AppLayout } from "./components/layout/AppLayout";
 import { Toast } from "./components/ui/Toast";
@@ -28,19 +27,19 @@ import MessageComposer from "./pages/messaging/MessageComposer";
 import CreditsPage     from "./pages/messaging/CreditsPage";
 import MessageHistory  from "./pages/messaging/MessageHistory";
 
-// ── Loading screen ──────────────────────────────────────────────────────────
+// ── Loading spinner ──────────────────────────────────────────────────────────
 function LoadingScreen() {
   return (
     <div style={{
       minHeight: "100vh", display: "flex", flexDirection: "column",
       alignItems: "center", justifyContent: "center",
-      gap: 20, background: "#f5f7fa",
+      gap: 16, background: "#f4f6f3",
     }}>
-      <div style={{ fontSize: 52 }}>⛪</div>
+      <div style={{ fontSize: 48 }}>⛪</div>
       <div style={{
-        width: 40, height: 40,
+        width: 36, height: 36,
         border: "4px solid #e0e0e0",
-        borderTop: "4px solid #4f46e5",
+        borderTop: "4px solid #1a3a2a",
         borderRadius: "50%",
         animation: "spin 0.8s linear infinite",
       }} />
@@ -49,130 +48,80 @@ function LoadingScreen() {
   );
 }
 
-// ── AppShell — only rendered when user is authenticated ─────────────────────
-// Loads all church data and provides it to every page.
+// ── Main app — only renders when user + church are confirmed ─────────────────
 function AppShell() {
-  const { church, showToast: _ } = useAuth();
-  const churchId = church?.id;
+  const { church, signOut, updateChurch } = useAuth();
+  const churchId = church.id;
 
   const [groups,            setGroupsRaw]      = useState([]);
   const [members,           setMembersRaw]     = useState([]);
   const [attendanceHistory, setAtHistory]      = useState([]);
   const [firstTimers,       setFirstTimersRaw] = useState([]);
-  const [ftAttendance,      setFtAttendanceRaw]= useState({});
+  const [ftAttendance,      setFtAttRaw]       = useState({});
   const [toast,             setToast]          = useState(null);
+  const [dataLoading,       setDataLoading]    = useState(true);
+  const [dataError,         setDataError]      = useState(null);
 
   const showToast = useCallback((msg) => setToast(msg), []);
 
-  // Load all data whenever churchId is available (set after login)
-  useEffect(() => {
-    if (!churchId) {
-      setGroupsRaw([]); setMembersRaw([]); setAtHistory([]);
-      setFirstTimersRaw([]); setFtAttendanceRaw({});
-      return;
-    }
-    Promise.all([
-      fetchGroups(churchId),
-      fetchMembers(churchId),
-      fetchAttendance(churchId),
-      fetchFirstTimers(churchId),
-      fetchFtAttendance(churchId),
-    ]).then(([g, m, a, ft, fta]) => {
+  const loadAll = useCallback(async () => {
+    setDataLoading(true);
+    setDataError(null);
+    try {
+      const [g, m, a, ft, fta] = await Promise.all([
+        fetchGroups(churchId),
+        fetchMembers(churchId),
+        fetchAttendance(churchId),
+        fetchFirstTimers(churchId),
+        fetchFtAttendance(churchId),
+      ]);
+      if (g.error) throw g.error;
       setGroupsRaw(g.data ?? []);
       setMembersRaw(m.data ?? []);
       setAtHistory((a.data ?? []).map(s => ({
         id: s.id, groupId: s.group_id, date: s.date, church_id: s.church_id,
-        records: (s.records ?? []).map(r => ({
-          memberId: r.member_id, name: r.name, present: r.present,
-        })),
+        records: (s.records ?? []).map(r => ({ memberId: r.member_id, name: r.name, present: r.present })),
       })));
       setFirstTimersRaw(ft.data ?? []);
-      setFtAttendanceRaw(fta.data ?? {});
-    }).catch(e => console.error("[AppShell] data load error:", e));
+      setFtAttRaw(fta.data ?? {});
+    } catch (e) {
+      setDataError(e?.message || "Failed to load data");
+    } finally {
+      setDataLoading(false);
+    }
   }, [churchId]);
 
-  // ── Helpers ────────────────────────────────────────────────────────────
-  const addGroup    = useCallback(async (g) => {
-    if (!churchId) return { error: new Error("Not signed in") };
-    const r = await createGroup({ ...g, church_id: churchId });
-    if (!r.error && r.data) setGroupsRaw(p => [...p, r.data]);
-    return r;
-  }, [churchId]);
+  useEffect(() => { loadAll(); }, [loadAll]);
 
-  const editGroup   = useCallback(async (id, u) => {
-    const r = await updateGroup(id, u);
-    if (!r.error && r.data) setGroupsRaw(p => p.map(x => x.id === id ? r.data : x));
-    return r;
-  }, []);
+  const addGroup    = useCallback(async g    => { const r = await createGroup({ ...g, church_id: churchId }); if (!r.error && r.data) setGroupsRaw(p => [...p, r.data]); return r; }, [churchId]);
+  const editGroup   = useCallback(async (id, u) => { const r = await updateGroup(id, u); if (!r.error && r.data) setGroupsRaw(p => p.map(x => x.id === id ? r.data : x)); return r; }, []);
+  const removeGroup = useCallback(async id  => { const r = await deleteGroup(id); if (!r.error) setGroupsRaw(p => p.filter(x => x.id !== id)); return r; }, []);
 
-  const removeGroup = useCallback(async (id) => {
-    const r = await deleteGroup(id);
-    if (!r.error) setGroupsRaw(p => p.filter(x => x.id !== id));
-    return r;
-  }, []);
+  const addMember      = useCallback(async m    => { const r = await createMember({ ...m, church_id: churchId }); if (!r.error && r.data) setMembersRaw(p => [...p, r.data]); return r; }, [churchId]);
+  const bulkAddMembers = useCallback(async ms   => { const r = await createMembersBulk(ms.map(m => ({ ...m, church_id: churchId }))); if (!r.error && r.data) setMembersRaw(p => [...p, ...r.data]); return r; }, [churchId]);
+  const editMember     = useCallback(async (id, u) => { const r = await updateMember(id, u); if (!r.error && r.data) setMembersRaw(p => p.map(x => x.id === id ? r.data : x)); return r; }, []);
+  const removeMember   = useCallback(async id  => { const r = await deleteMember(id); if (!r.error) setMembersRaw(p => p.filter(x => x.id !== id)); return r; }, []);
 
-  const addMember = useCallback(async (m) => {
-    if (!churchId) return { error: new Error("Not signed in") };
-    const r = await createMember({ ...m, church_id: churchId });
-    if (!r.error && r.data) setMembersRaw(p => [...p, r.data]);
-    return r;
-  }, [churchId]);
-
-  const bulkAddMembers = useCallback(async (ms) => {
-    if (!churchId) return { error: new Error("Not signed in") };
-    const r = await createMembersBulk(ms.map(m => ({ ...m, church_id: churchId })));
-    if (!r.error && r.data) setMembersRaw(p => [...p, ...r.data]);
-    return r;
-  }, [churchId]);
-
-  const editMember = useCallback(async (id, u) => {
-    const r = await updateMember(id, u);
-    if (!r.error && r.data) setMembersRaw(p => p.map(x => x.id === id ? r.data : x));
-    return r;
-  }, []);
-
-  const removeMember = useCallback(async (id) => {
-    const r = await deleteMember(id);
-    if (!r.error) setMembersRaw(p => p.filter(x => x.id !== id));
-    return r;
-  }, []);
-
-  const saveAttendance = useCallback(async (session) => {
-    if (!churchId) return { error: new Error("Not signed in") };
+  const saveAttendance = useCallback(async session => {
     const r = await saveAttendanceSession({ ...session, church_id: churchId });
     if (!r.error && r.data) {
       const saved = { ...session, id: r.data.id };
       setAtHistory(h => {
-        const idx = h.findIndex(s => s.id === session.id);
-        return idx >= 0 ? h.map((s, i) => i === idx ? saved : s) : [...h, saved];
+        const i = h.findIndex(s => s.id === session.id);
+        return i >= 0 ? h.map((s, j) => j === i ? saved : s) : [...h, saved];
       });
     }
     return r;
   }, [churchId]);
 
-  const addFirstTimer = useCallback(async (ft) => {
-    if (!churchId) return { error: new Error("Not signed in") };
-    const r = await createFirstTimer({ ...ft, church_id: churchId });
-    if (!r.error && r.data) setFirstTimersRaw(p => [r.data, ...p]);
-    return r;
-  }, [churchId]);
+  const addFirstTimer    = useCallback(async ft    => { const r = await createFirstTimer({ ...ft, church_id: churchId }); if (!r.error && r.data) setFirstTimersRaw(p => [r.data, ...p]); return r; }, [churchId]);
+  const editFirstTimer   = useCallback(async (id, u) => { const r = await updateFirstTimer(id, u); if (!r.error && r.data) setFirstTimersRaw(p => p.map(x => x.id === id ? r.data : x)); return r; }, []);
+  const removeFirstTimer = useCallback(async id   => { const r = await deleteFirstTimer(id); if (!r.error) setFirstTimersRaw(p => p.filter(x => x.id !== id)); return r; }, []);
 
-  const editFirstTimer = useCallback(async (id, u) => {
-    const r = await updateFirstTimer(id, u);
-    if (!r.error && r.data) setFirstTimersRaw(p => p.map(x => x.id === id ? r.data : x));
-    return r;
-  }, []);
-
-  const removeFirstTimer = useCallback(async (id) => {
-    const r = await deleteFirstTimer(id);
-    if (!r.error) setFirstTimersRaw(p => p.filter(x => x.id !== id));
-    return r;
-  }, []);
-
-  const setFtAttendance = useCallback((updaterOrValue) => {
-    setFtAttendanceRaw(prev => {
-      const next = typeof updaterOrValue === "function" ? updaterOrValue(prev) : updaterOrValue;
-      if (churchId) saveFtAttendance(churchId, next);
+  const setFtAttendance = useCallback((updOrVal) => {
+    setFtAttRaw(prev => {
+      const next = typeof updOrVal === "function" ? updOrVal(prev) : updOrVal;
+      saveFtAttendance(churchId, next);
       return next;
     });
   }, [churchId]);
@@ -183,25 +132,35 @@ function AppShell() {
     addMember, bulkAddMembers, editMember, removeMember,
     setAttendanceHistory: setAtHistory, saveAttendance,
     addFirstTimer, editFirstTimer, removeFirstTimer,
-    setFtAttendance,
-    showToast,
+    setFtAttendance, showToast, updateChurch, signOut,
   };
 
   return (
     <>
       <AppLayout>
+        {dataError && (
+          <div style={{ background: "#fce8e8", borderBottom: "2px solid #f5c8c8", padding: "10px 20px", fontSize: 13, color: "#8a2020", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <span>⚠️ {dataError}</span>
+            <button onClick={loadAll} style={{ background: "#8a2020", color: "#fff", border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Retry</button>
+          </div>
+        )}
+        {dataLoading && (
+          <div style={{ height: 3, background: "linear-gradient(90deg,var(--brand),var(--brand-light),var(--brand))", backgroundSize: "200% 100%", animation: "bar 1.2s infinite linear" }}>
+            <style>{`@keyframes bar { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }`}</style>
+          </div>
+        )}
         <Routes>
-          <Route path="/"              element={<Dashboard {...shared} />} />
-          <Route path="/groups/*"      element={<Groups {...shared} />} />
-          <Route path="/members"       element={<Members {...shared} />} />
-          <Route path="/attendance"    element={<Attendance {...shared} />} />
-          <Route path="/firsttimers"   element={<FirstTimers {...shared} />} />
-          <Route path="/settings"      element={<Settings {...shared} />} />
-          <Route path="/messaging"         element={<MessagingHome showToast={showToast} />} />
+          <Route path="/"                  element={<Dashboard      {...shared} />} />
+          <Route path="/groups/*"          element={<Groups         {...shared} />} />
+          <Route path="/members"           element={<Members        {...shared} />} />
+          <Route path="/attendance"        element={<Attendance     {...shared} />} />
+          <Route path="/firsttimers"       element={<FirstTimers    {...shared} />} />
+          <Route path="/settings"          element={<Settings       {...shared} />} />
+          <Route path="/messaging"         element={<MessagingHome   showToast={showToast} />} />
           <Route path="/messaging/send"    element={<MessageComposer {...shared} />} />
-          <Route path="/messaging/credits" element={<CreditsPage showToast={showToast} />} />
-          <Route path="/messaging/history" element={<MessageHistory showToast={showToast} />} />
-          <Route path="*"              element={<Navigate to="/" replace />} />
+          <Route path="/messaging/credits" element={<CreditsPage     showToast={showToast} />} />
+          <Route path="/messaging/history" element={<MessageHistory  showToast={showToast} />} />
+          <Route path="*"                  element={<Navigate to="/" replace />} />
         </Routes>
       </AppLayout>
       {toast && <Toast msg={toast} onClose={() => setToast(null)} />}
@@ -209,33 +168,29 @@ function AppShell() {
   );
 }
 
-// ── Root ─────────────────────────────────────────────────────────────────────
-// Auth state drives ALL routing. Pages never call navigate() after sign-in.
+// ── Root — decides what to render ────────────────────────────────────────────
 function Root() {
-  const { isAuthenticated, loading } = useAuth();
+  const { loading, isAuthenticated, church } = useAuth();
 
-  // Still resolving session from localStorage — show spinner
   if (loading) return <LoadingScreen />;
 
+  if (isAuthenticated && church) return <AppShell />;
+
+  // Not logged in
   return (
     <Routes>
-      {/* Auth pages: redirect to dashboard if already signed in */}
-      <Route path="/login"  element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />} />
-      <Route path="/signup" element={isAuthenticated ? <Navigate to="/" replace /> : <SignupPage />} />
+      <Route path="/login"  element={<LoginPage />} />
+      <Route path="/signup" element={<SignupPage />} />
       <Route path="/forgot" element={<ForgotPage />} />
-
-      {/* App: redirect to login if not signed in */}
-      <Route path="/*" element={isAuthenticated ? <AppShell /> : <Navigate to="/login" replace />} />
+      <Route path="*"       element={<Navigate to="/login" replace />} />
     </Routes>
   );
 }
 
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Root />
-      </BrowserRouter>
-    </AuthProvider>
+    <BrowserRouter>
+      <Root />
+    </BrowserRouter>
   );
 }

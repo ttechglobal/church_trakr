@@ -337,7 +337,7 @@ function RecordVisitModal({ person, onClose, onSave, showToast }) {
 }
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
-export default function FirstTimers({ firstTimers, setFirstTimers, showToast }) {
+export default function FirstTimers({ firstTimers, addFirstTimer, editFirstTimer, removeFirstTimer, ftAttendance, setFtAttendance, showToast }) {
   const [addModal, setAddModal] = useState(false);
   const [viewPerson, setViewPerson] = useState(null);
   const [editPerson, setEditPerson] = useState(null);
@@ -345,37 +345,44 @@ export default function FirstTimers({ firstTimers, setFirstTimers, showToast }) 
   const [smsAll, setSmsAll] = useState(false);
   const [delConfirm, setDelConfirm] = useState(null);
   const [tab, setTab] = useState("list"); // "list" | "attendance"
-  const [ftAttendance, setFtAttendance] = useState({});
+  const [saving, setSaving] = useState(false);
 
   // Attendance tab state
   const [attDate, setAttDate] = useState(new Date().toISOString().split("T")[0]);
   const [markingAtt, setMarkingAtt] = useState(false);
 
-  const handleAdd = (f) => {
-    setFirstTimers(t => [{ id: uid(), ...f, visits: [f.date], church_id: "church_001" }, ...t]);
+  const handleAdd = async (f) => {
+    setSaving(true);
+    const { error } = await addFirstTimer(f);
+    setSaving(false);
+    if (error) { showToast("Failed to record visitor ❌"); return; }
     setAddModal(false);
     showToast("First timer recorded! ⭐");
   };
 
-  const handleEdit = (f) => {
-    setFirstTimers(t => t.map(p => p.id === editPerson.id ? { ...p, ...f } : p));
+  const handleEdit = async (f) => {
+    setSaving(true);
+    const { error } = await editFirstTimer(editPerson.id, f);
+    setSaving(false);
+    if (error) { showToast("Failed to update ❌"); return; }
     setEditPerson(null);
-    showToast("Updated!");
+    showToast("Updated! ✅");
   };
 
-  const handleRecordVisit = (date, person) => {
-    setFirstTimers(t => t.map(p => p.id === person.id ? {
-      ...p,
-      visits: [...new Set([...(p.visits || [p.date]), date])].sort((a, b) => b.localeCompare(a))
-    } : p));
+  const handleRecordVisit = async (date, person) => {
+    const newVisits = [...new Set([...(person.visits || [person.date]), date])].sort((a, b) => b.localeCompare(a));
+    await editFirstTimer(person.id, { visits: newVisits });
   };
 
   const handleUpdateAttendance = (date, marks) => {
     setFtAttendance(a => ({ ...a, [date]: marks }));
   };
 
-  const handleDelete = (id) => {
-    setFirstTimers(t => t.filter(p => p.id !== id));
+  const handleDelete = async (id) => {
+    setSaving(true);
+    const { error } = await removeFirstTimer(id);
+    setSaving(false);
+    if (error) { showToast("Failed to delete ❌"); return; }
     setViewPerson(null);
     setDelConfirm(null);
     showToast("Record deleted.");
@@ -415,13 +422,13 @@ export default function FirstTimers({ firstTimers, setFirstTimers, showToast }) 
           />
         )}
         {delConfirm && (
-          <Modal title="Delete Record?" onClose={() => setDelConfirm(null)}>
+          <Modal title="Delete Record?" onClose={() => { if (!saving) setDelConfirm(null); }}>
             <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 20 }}>
               Permanently delete {livePerson.name}'s record?
             </p>
             <div style={{ display: "flex", gap: 10 }}>
-              <button className="btn bg" style={{ flex: 1 }} onClick={() => setDelConfirm(null)}>Cancel</button>
-              <button className="btn bd" style={{ flex: 1 }} onClick={() => handleDelete(delConfirm)}>Delete</button>
+              <button className="btn bg" style={{ flex: 1 }} onClick={() => setDelConfirm(null)} disabled={saving}>Cancel</button>
+              <button className="btn bd" style={{ flex: 1 }} onClick={() => handleDelete(delConfirm)} disabled={saving}>{saving ? "Deleting…" : "Delete"}</button>
             </div>
           </Modal>
         )}

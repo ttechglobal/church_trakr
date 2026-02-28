@@ -32,7 +32,7 @@ function EditMemberModal({ member, groups, onClose, onSave }) {
   );
 }
 
-function AddMemberModal({ onClose, onAdd }) {
+function AddMemberModal({ onClose, onAdd, saving }) {
   const [f, setF] = useState({ firstName: "", lastName: "", phone: "", address: "", birthday: "" });
   const [err, setErr] = useState("");
   const h = e => setF(x => ({ ...x, [e.target.name]: e.target.value }));
@@ -52,8 +52,8 @@ function AddMemberModal({ onClose, onAdd }) {
         <div className="fg"><label className="fl">Birthday <span style={{ fontWeight: 400, color: "var(--muted)" }}>optional</span></label><input className="fi" name="birthday" type="date" value={f.birthday} onChange={h} /></div>
         {err && <p style={{ color: "var(--danger)", fontSize: 13 }}>{err}</p>}
         <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
-          <button className="btn bg" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
-          <button className="btn bp" style={{ flex: 1 }} onClick={go}>Add Member</button>
+          <button className="btn bg" style={{ flex: 1 }} onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="btn bp" style={{ flex: 1 }} onClick={go} disabled={saving}>{saving ? "Adding…" : "Add Member"}</button>
         </div>
       </div>
     </Modal>
@@ -106,27 +106,44 @@ function MemberProfile({ member, groups, attendanceHistory, onBack, onEdit }) {
   );
 }
 
-export default function Members({ members, setMembers, groups, attendanceHistory, showToast }) {
+export default function Members({ members, groups, attendanceHistory, addMember, editMember, removeMember, showToast }) {
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState("all");
   const [addModal, setAddModal] = useState(false);
   const [viewMember, setViewMember] = useState(null);
   const [editingMember, setEditingMember] = useState(false);
+  const [saving, setSaving] = useState(false);
+
   const filtered = members.filter(m => {
     const q = search.toLowerCase();
     return (m.name.toLowerCase().includes(q) || m.phone.includes(q)) && (tab === "all" || m.status === tab);
   });
-  const handleAdd = ({ name, phone, address, birthday }) => {
-    setMembers(ms => [...ms, { id: uid(), name, phone, address, birthday, groupIds: [], status: "active", church_id: "church_001" }]);
-    setAddModal(false); showToast("Member added!");
+
+  const handleAdd = async ({ name, phone, address, birthday }) => {
+    setSaving(true);
+    const { error } = await addMember({ name, phone, address, birthday, groupIds: [], status: "active" });
+    setSaving(false);
+    if (error) { showToast("Failed to add member ❌"); return; }
+    setAddModal(false); showToast("Member added! ✅");
   };
-  const handleSave = updated => {
-    setMembers(ms => ms.map(m => m.id === updated.id ? updated : m));
-    setViewMember(updated); setEditingMember(false); showToast("Member updated!");
+
+  const handleSave = async (updated) => {
+    setSaving(true);
+    const { error } = await editMember(updated.id, updated);
+    setSaving(false);
+    if (error) { showToast("Failed to update member ❌"); return; }
+    setViewMember(members.find(m => m.id === updated.id) || updated);
+    setEditingMember(false); showToast("Member updated! ✅");
   };
+
   if (viewMember) {
     const live = members.find(m => m.id === viewMember.id) || viewMember;
-    return (<><MemberProfile member={live} groups={groups} attendanceHistory={attendanceHistory} onBack={() => setViewMember(null)} onEdit={() => setEditingMember(true)} />{editingMember && <EditMemberModal member={live} groups={groups} onClose={() => setEditingMember(false)} onSave={handleSave} />}</>);
+    return (
+      <>
+        <MemberProfile member={live} groups={groups} attendanceHistory={attendanceHistory} onBack={() => setViewMember(null)} onEdit={() => setEditingMember(true)} />
+        {editingMember && <EditMemberModal member={live} groups={groups} onClose={() => setEditingMember(false)} onSave={handleSave} saving={saving} />}
+      </>
+    );
   }
   return (
     <div className="page">
@@ -140,9 +157,9 @@ export default function Members({ members, setMembers, groups, attendanceHistory
         <div className="sw" style={{ marginBottom: 14 }}><div className="si"><SrchIco /></div><input className="fi" placeholder="Search members…" value={search} onChange={e => setSearch(e.target.value)} /></div>
         <div className="tabs" style={{ marginBottom: 14 }}>{["all", "active", "inactive"].map(t => (<button key={t} className={`tab ${tab === t ? "act" : ""}`} onClick={() => setTab(t)}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>))}</div>
         {filtered.map(m => { const av = getAv(m.name); const mg = groups.filter(g => (m.groupIds || []).includes(g.id)); return (<div key={m.id} className="li" onClick={() => setViewMember(m)}><div className="av" style={{ background: av.bg, color: av.color }}>{av.initials}</div><div className="li-info"><div className="li-name">{m.name}</div><div className="li-sub">{m.phone}{mg.length > 0 ? " · " + mg.map(g => g.name).join(", ") : ""}</div></div><span className={`bdg ${m.status === "active" ? "bg-green" : "bg-gray"}`}>{m.status}</span></div>); })}
-        {filtered.length === 0 && <div className="empty"><div className="empty-ico">🔍</div><p>No members found</p></div>}
+        {filtered.length === 0 && <div className="empty"><div className="empty-ico">🔍</div><p>{search ? "No members match" : "No members yet"}</p></div>}
       </div>
-      {addModal && <AddMemberModal onClose={() => setAddModal(false)} onAdd={handleAdd} />}
+      {addModal && <AddMemberModal onClose={() => setAddModal(false)} onAdd={handleAdd} saving={saving} />}
     </div>
   );
 }

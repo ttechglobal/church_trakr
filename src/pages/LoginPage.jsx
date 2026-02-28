@@ -12,28 +12,27 @@ export default function LoginPage() {
   const [err,      setErr]      = useState("");
   const [busy,     setBusy]     = useState(false);
 
-  const go = async () => {
+  const submit = async () => {
     setErr("");
-    const e = email.trim();
-    if (!e)        { setErr("Enter your email address"); return; }
-    if (!password) { setErr("Enter your password"); return; }
+    if (!email.trim()) { setErr("Enter your email address"); return; }
+    if (!password)     { setErr("Enter your password"); return; }
 
     setBusy(true);
-    const { error } = await signIn(e, password);
+    const { error } = await signIn(email.trim(), password);
     setBusy(false);
 
     if (error) {
       const m = error.message ?? "";
-      if (m.includes("Invalid login") || m.includes("invalid_credentials"))
+      if (m.includes("Invalid login") || m.includes("invalid_credentials")) {
         setErr("Incorrect email or password.");
-      else if (m.includes("Email not confirmed"))
+      } else if (m.includes("Email not confirmed")) {
         setErr("Please confirm your email first — check your inbox.");
-      else
+      } else {
         setErr(m || "Sign in failed. Please try again.");
+      }
       return;
     }
 
-    // Explicitly navigate so we don't rely solely on auth state re-render
     navigate("/", { replace: true });
   };
 
@@ -47,46 +46,52 @@ export default function LoginPage() {
           <div className="fg">
             <label className="fl">Email</label>
             <input
-              className="fi" type="email"
+              className="fi"
+              type="email"
               placeholder="pastor@church.org"
               value={email}
               onChange={e => setEmail(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && go()}
-              autoComplete="email" autoCapitalize="none"
+              onKeyDown={e => e.key === "Enter" && submit()}
+              autoComplete="email"
+              autoCapitalize="none"
+              autoFocus
             />
           </div>
+
           <div className="fg">
             <label className="fl">Password</label>
             <input
-              className="fi" type="password"
+              className="fi"
+              type="password"
               placeholder="••••••••"
               value={password}
               onChange={e => setPassword(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && go()}
+              onKeyDown={e => e.key === "Enter" && submit()}
               autoComplete="current-password"
             />
           </div>
 
           {err && (
             <div style={{
-              background: "#fce8e8", border: "1.5px solid #f5c8c8",
-              borderRadius: 10, padding: "10px 14px",
-              fontSize: 13, color: "var(--danger)", fontWeight: 500,
+              background: "#fce8e8",
+              border: "1.5px solid #f5c8c8",
+              borderRadius: 10,
+              padding: "10px 14px",
+              fontSize: 13,
+              color: "var(--danger)",
+              fontWeight: 500,
             }}>
               {err}
             </div>
           )}
 
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <span
-              className="alink" style={{ fontSize: 13 }}
-              onClick={() => navigate("/forgot")}
-            >
+            <span className="alink" style={{ fontSize: 13 }} onClick={() => navigate("/forgot")}>
               Forgot password?
             </span>
           </div>
 
-          <button className="btn bp blg" onClick={go} disabled={busy}>
+          <button className="btn bp blg" onClick={submit} disabled={busy}>
             {busy ? "Signing in…" : "Sign In"}
           </button>
         </div>
