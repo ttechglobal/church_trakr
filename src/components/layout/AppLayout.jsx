@@ -6,21 +6,22 @@ import {
 } from "../ui/Icons";
 
 const MAIN_NAV = [
-  { to: "/",           label: "Home",       Icon: HomeIco },
-  { to: "/groups",     label: "Groups",     Icon: GrpIco  },
-  { to: "/members",    label: "Members",    Icon: MemIco  },
-  { to: "/attendance", label: "Attendance", Icon: AttIco  },
-  { to: "/messaging",  label: "Messaging",  Icon: MsgIco  },
-  { to: "/settings",   label: "Settings",   Icon: SetIco  },
+  { to: "/",            label: "Home",         Icon: HomeIco },
+  { to: "/groups",      label: "Groups",       Icon: GrpIco  },
+  { to: "/members",     label: "Members",      Icon: MemIco  },
+  { to: "/attendance",  label: "Attendance",   Icon: AttIco  },
+  { to: "/firsttimers", label: "First Timers", Icon: StarIco },
+  { to: "/messaging",   label: "Messaging",    Icon: MsgIco  },
+  { to: "/settings",    label: "Settings",     Icon: SetIco  },
 ];
 
-// Bottom nav shows 5 most important pages
+// Bottom nav — 5 most used pages on mobile
 const BOTTOM_NAV = [
-  { to: "/",           label: "Home",    Icon: HomeIco },
-  { to: "/groups",     label: "Groups",  Icon: GrpIco  },
-  { to: "/attendance", label: "Attend",  Icon: AttIco  },
-  { to: "/messaging",  label: "Message", Icon: MsgIco  },
-  { to: "/settings",   label: "More",    Icon: SetIco  },
+  { to: "/",            label: "Home",    Icon: HomeIco },
+  { to: "/groups",      label: "Groups",  Icon: GrpIco  },
+  { to: "/attendance",  label: "Attend",  Icon: AttIco  },
+  { to: "/firsttimers", label: "Visitors",Icon: StarIco },
+  { to: "/messaging",   label: "Message", Icon: MsgIco  },
 ];
 
 export function AppLayout({ children }) {
@@ -46,9 +47,6 @@ export function AppLayout({ children }) {
               <n.Icon /> {n.label}
             </NavLink>
           ))}
-          <NavLink to="/firsttimers" className={navCls}>
-            <StarIco /> First Timers
-          </NavLink>
         </div>
         <div className="sb-foot">
           <button className="ni" onClick={handleLogout}>

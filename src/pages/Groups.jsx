@@ -1,7 +1,7 @@
 // src/pages/Groups.jsx
 import { useState } from "react";
 import { Modal } from "../components/ui/Modal";
-import { getAv, fmtDate, fmtBday, uid } from "../lib/helpers";
+import { getAv, fmtDate, fmtBday, uid, normBirthday } from "../lib/helpers";
 import { PlusIco, SrchIco, TrashIco, ChevR, ChevL, UpIco, EditIco, PhoneIco, PinIco, CakeIco, SmsIco, SetIco } from "../components/ui/Icons";
 
 // ── Birthday SMS Modal ────────────────────────────────────────────────────────
@@ -103,50 +103,151 @@ function ImportModal({ group, onClose, onImport }) {
   const [parsedRows, setParsedRows] = useState([]);
   const [fileName, setFileName] = useState("");
   const [parseError, setParseError] = useState("");
+  const [parsing, setParsing] = useState(false);
   const [mp, setMp] = useState({ fullName: "", firstName: "", lastName: "", phone: "", address: "", birthday: "" });
   const NONE = "— skip —";
 
-  const parseCSV = (text) => {
-    const lines = text.trim().split(/\r?\n/);
-    if (lines.length < 2) return { headers: [], rows: [] };
-    const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, ""));
-    const rows = lines.slice(1).map(line => {
-      const cols = line.split(",").map(c => c.trim().replace(/^"|"$/g, ""));
-      const obj = {};
-      headers.forEach((h, i) => { obj[h] = cols[i] || ""; });
-      return obj;
+  // ── Auto-guess column mapping ─────────────────────────────────────────────
+  const applyGuess = (hdrs) => {
+    const guess = (kws) => hdrs.find(h => kws.some(k => h.toLowerCase().includes(k))) || NONE;
+    const nm = guess(["full name","fullname","name"]);
+    const fn = guess(["first name","firstname","first"]);
+    // If we found a clear "full name" col use full mode; if separate first/last prefer split
+    const hasSplit = fn !== NONE && guess(["last name","lastname","surname","last"]) !== NONE;
+    if (hasSplit) setNameMode("split");
+    setMp({
+      fullName:  nm,
+      firstName: fn,
+      lastName:  guess(["last name","lastname","surname","last"]),
+      phone:     guess(["phone","mobile","tel","number","contact","gsm"]),
+      address:   guess(["address","location","home","residence"]),
+      birthday:  guess(["birth","dob","birthday","born","date of birth"]),
     });
+  };
+
+  // ── CSV / TXT parser — handles quoted fields properly ─────────────────────
+  const parseCSVText = (text) => {
+    const lines = text.replace(/\r\n/g,"\n").replace(/\r/g,"\n").split("\n");
+    const nonEmpty = lines.filter(l => l.trim());
+    if (nonEmpty.length < 2) throw new Error("File needs a header row and at least one data row.");
+    const first = nonEmpty[0];
+    const delim = first.includes("\t") ? "\t" : first.includes(";") ? ";" : ",";
+    const parseLine = (line) => {
+      const fields = []; let cur = ""; let inQ = false;
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (c === '"') { inQ = !inQ; }
+        else if (c === delim && !inQ) { fields.push(cur.trim()); cur = ""; }
+        else { cur += c; }
+      }
+      fields.push(cur.trim());
+      return fields;
+    };
+    const headers = parseLine(nonEmpty[0]).map(h => h.replace(/^"|"$/g,"").trim());
+    const rows = nonEmpty.slice(1).map(line => {
+      const cols = parseLine(line);
+      const obj = {};
+      headers.forEach((h,i) => { obj[h] = (cols[i]||"").replace(/^"|"$/g,"").trim(); });
+      return obj;
+    }).filter(r => Object.values(r).some(v => v));
+    if (headers.length < 2) throw new Error("Could not detect multiple columns. Make sure values are separated by commas, tabs, or semicolons.");
     return { headers, rows };
   };
 
-  const handleFile = (file) => {
+  // ── XLSX parser via SheetJS (loaded from CDN on demand) ──────────────────
+  const parseXLSX = (file) => new Promise((resolve, reject) => {
+    const process = (ab) => {
+      try {
+        const wb = window.XLSX.read(ab, { type: "array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const aoa = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+        if (aoa.length < 2) { reject(new Error("Spreadsheet appears empty.")); return; }
+        const headers = aoa[0].map(h => String(h).trim()).filter(Boolean);
+        const rows = aoa.slice(1).map(row => {
+          const obj = {}; headers.forEach((h,i) => { obj[h] = String(row[i] ?? "").trim(); }); return obj;
+        }).filter(r => Object.values(r).some(v => v));
+        resolve({ headers, rows });
+      } catch(e) { reject(new Error("Could not read spreadsheet. Is it a valid .xlsx file?")); }
+    };
+    const reader = new FileReader();
+    reader.onload = e => {
+      if (window.XLSX) { process(e.target.result); return; }
+      const s = document.createElement("script");
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+      s.onload = () => process(e.target.result);
+      s.onerror = () => reject(new Error("Could not load Excel reader. Check internet connection."));
+      document.head.appendChild(s);
+    };
+    reader.onerror = () => reject(new Error("Failed to read file."));
+    reader.readAsArrayBuffer(file);
+  });
+
+  // ── DOCX parser via mammoth (loaded from CDN on demand) ──────────────────
+  const parseDocx = (file) => new Promise((resolve, reject) => {
+    const extract = (ab) => {
+      window.mammoth.extractRawText({ arrayBuffer: ab })
+        .then(res => {
+          const lines = res.value.split(/\n/).map(l => l.trim()).filter(Boolean);
+          if (lines.length < 2) { reject(new Error("Word document is empty or has no readable text.")); return; }
+          const splitRow = l => l.includes("\t") ? l.split("\t").map(c=>c.trim()) : l.split(/\s{2,}/).map(c=>c.trim()).filter(Boolean);
+          const allRows = lines.map(splitRow);
+          const maxCols = Math.max(...allRows.map(r=>r.length));
+          if (maxCols >= 2) {
+            const headers = allRows[0].map((h,i) => h || `Col${i+1}`);
+            const rows = allRows.slice(1).map(cols => {
+              const obj={}; headers.forEach((h,i)=>{obj[h]=cols[i]||"";}); return obj;
+            }).filter(r => Object.values(r).some(v=>v));
+            resolve({ headers, rows });
+          } else {
+            resolve({ headers: ["Name"], rows: lines.map(l=>({ Name: l })) });
+          }
+        })
+        .catch(() => reject(new Error("Could not read Word document. Make sure it's a .docx file (not .doc).")));
+    };
+    const reader = new FileReader();
+    reader.onload = e => {
+      const ab = e.target.result;
+      if (window.mammoth) { extract(ab); return; }
+      const s = document.createElement("script");
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js";
+      s.onload = () => extract(ab);
+      s.onerror = () => reject(new Error("Could not load Word document reader. Check internet connection."));
+      document.head.appendChild(s);
+    };
+    reader.onerror = () => reject(new Error("Failed to read file."));
+    reader.readAsArrayBuffer(file);
+  });
+
+  // ── Main file handler ─────────────────────────────────────────────────────
+  const handleFile = async (file) => {
     if (!file) return;
     setFileName(file.name);
     setParseError("");
+    setParsing(true);
     const ext = file.name.split(".").pop().toLowerCase();
-    if (ext === "csv" || ext === "txt") {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const { headers, rows } = parseCSV(e.target.result);
-          if (headers.length === 0) { setParseError("Could not read file. Make sure it's a valid CSV."); return; }
-          setParsedHeaders(headers);
-          setParsedRows(rows);
-          const guess = (keywords) => headers.find(h => keywords.some(k => h.toLowerCase().includes(k))) || "";
-          setMp({
-            fullName: guess(["full", "name"]),
-            firstName: guess(["first"]),
-            lastName: guess(["last", "surname"]),
-            phone: guess(["phone", "mobile", "tel", "number"]),
-            address: guess(["address", "location"]),
-            birthday: guess(["birth", "dob", "birthday"]),
-          });
-          setStep(1);
-        } catch (err) { setParseError("Failed to parse file."); }
-      };
-      reader.readAsText(file);
-    } else {
-      setParseError("Please export your Excel file as CSV and upload that. (File → Save As → CSV)");
+    try {
+      let result;
+      if (ext === "csv" || ext === "txt") {
+        const text = await file.text();
+        result = parseCSVText(text);
+      } else if (ext === "xlsx" || ext === "xls") {
+        result = await parseXLSX(file);
+      } else if (ext === "docx") {
+        result = await parseDocx(file);
+      } else if (ext === "doc") {
+        throw new Error("Old .doc format isn't supported. Open in Word → Save As → .docx");
+      } else {
+        throw new Error("Please use .csv, .xlsx (Excel), or .docx (Word)");
+      }
+      if (!result.headers.length || !result.rows.length) throw new Error("No data found. Check the file has headers and at least one row.");
+      setParsedHeaders(result.headers);
+      setParsedRows(result.rows);
+      applyGuess(result.headers);
+      setStep(1);
+    } catch (err) {
+      setParseError(err.message || "Failed to read file.");
+    } finally {
+      setParsing(false);
     }
   };
 
@@ -162,7 +263,7 @@ function ImportModal({ group, onClose, onImport }) {
       name: nameMode === "full" ? (row[mp.fullName] || "").trim() : `${row[mp.firstName] || ""} ${row[mp.lastName] || ""}`.trim(),
       phone: (row[mp.phone] || "").trim(),
       address: mp.address !== NONE ? (row[mp.address] || "").trim() : "",
-      birthday: mp.birthday !== NONE ? (row[mp.birthday] || "").trim() : ""
+      birthday: mp.birthday !== NONE ? normBirthday((row[mp.birthday] || "").trim()) : ""
     })).filter(r => r.name && r.phone);
     onImport(mems);
     setStep(3);
@@ -187,40 +288,89 @@ function ImportModal({ group, onClose, onImport }) {
       <Prog />
       {step === 0 && (
         <div>
-          <label style={{ display: "block", cursor: "pointer" }}>
-            <div className="upz">
+          <label style={{ display: "block", cursor: parsing ? "wait" : "pointer" }}>
+            <div className="upz" style={{ opacity: parsing ? 0.7 : 1 }}>
               <UpIco />
-              <div style={{ fontWeight: 700, fontSize: 15 }}>{fileName || "Tap to upload CSV file"}</div>
-              <div style={{ fontSize: 13, color: "var(--muted)" }}>{fileName ? "Tap to change file" : "Supports .csv files"}</div>
+              <div style={{ fontWeight: 700, fontSize: 15 }}>
+                {parsing ? "Reading file…" : fileName || "Tap to upload your members list"}
+              </div>
+              <div style={{ fontSize: 13, color: "var(--muted)" }}>
+                {parsing ? "Please wait…" : fileName ? "Tap to change file" : ".csv  ·  .xlsx  ·  .docx"}
+              </div>
             </div>
-            <input type="file" accept=".csv,.txt" style={{ display: "none" }} onChange={e => handleFile(e.target.files[0])} />
+            <input type="file" accept=".csv,.txt,.xlsx,.xls,.docx,.doc" style={{ display: "none" }}
+              onChange={e => handleFile(e.target.files[0])} disabled={parsing} />
           </label>
-          {parseError && <p style={{ color: "var(--danger)", fontSize: 13, marginTop: 12 }}>{parseError}</p>}
-          <p style={{ textAlign: "center", marginTop: 14, fontSize: 13, color: "var(--muted)" }}>
-            Your CSV should have a header row: <strong>Name, Phone, Address</strong>
-          </p>
+          {parseError && (
+            <div style={{ background: "#fce8e8", border: "1px solid #f5c8c8", borderRadius: 10, padding: "12px 14px", marginTop: 12 }}>
+              <p style={{ color: "var(--danger)", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>⚠️ Could not read file</p>
+              <p style={{ color: "var(--danger)", fontSize: 13 }}>{parseError}</p>
+            </div>
+          )}
+          <div style={{ marginTop: 14, background: "var(--surface2)", borderRadius: 10, padding: "12px 14px" }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginBottom: 6 }}>💡 Tips</p>
+            <p style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.7 }}>
+              <strong>Excel (.xlsx):</strong> Any spreadsheet with headers works.<br/>
+              <strong>Word (.docx):</strong> Use a table — first row should be column names.<br/>
+              <strong>CSV:</strong> First row = headers. Comma, tab, or semicolon separated.
+            </p>
+          </div>
         </div>
       )}
       {step === 1 && (
         <div>
-          <p style={{ fontWeight: 700, marginBottom: 14, fontSize: 15 }}>Map your columns</p>
+          <p style={{ fontWeight: 700, marginBottom: 14, fontSize: 15 }}>
+            Detected {parsedHeaders.length} columns, {parsedRows.length} rows
+          </p>
           <div style={{ marginBottom: 14 }}>
-            <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Name format:</p>
+            <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>How is the name stored?</p>
             <div style={{ display: "flex", gap: 8 }}>
-              <button className={`btn ${nameMode === "full" ? "bp" : "bg"}`} style={{ flex: 1, fontSize: 13 }} onClick={() => setNameMode("full")}>Full Name (1 col)</button>
-              <button className={`btn ${nameMode === "split" ? "bp" : "bg"}`} style={{ flex: 1, fontSize: 13 }} onClick={() => setNameMode("split")}>First + Last</button>
+              <button className={`btn ${nameMode === "full" ? "bp" : "bg"}`} style={{ flex: 1, fontSize: 13 }} onClick={() => setNameMode("full")}>One "Name" column</button>
+              <button className={`btn ${nameMode === "split" ? "bp" : "bg"}`} style={{ flex: 1, fontSize: 13 }} onClick={() => setNameMode("split")}>First + Last separate</button>
             </div>
           </div>
           <div className="fstack">
-            {nameMode === "full"
-              ? <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 110, fontWeight: 600, fontSize: 13 }}>Full Name *</div><select className="fi" style={{ flex: 1 }} value={mp.fullName} onChange={e => setMp(m => ({ ...m, fullName: e.target.value }))}>{colOpts.map(c => <option key={c}>{c}</option>)}</select></div>
-              : <>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 110, fontWeight: 600, fontSize: 13 }}>First Name *</div><select className="fi" style={{ flex: 1 }} value={mp.firstName} onChange={e => setMp(m => ({ ...m, firstName: e.target.value }))}>{colOpts.map(c => <option key={c}>{c}</option>)}</select></div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 110, fontWeight: 600, fontSize: 13 }}>Last Name</div><select className="fi" style={{ flex: 1 }} value={mp.lastName} onChange={e => setMp(m => ({ ...m, lastName: e.target.value }))}>{colOpts.map(c => <option key={c}>{c}</option>)}</select></div>
-                </>}
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 110, fontWeight: 600, fontSize: 13 }}>Phone *</div><select className="fi" style={{ flex: 1 }} value={mp.phone} onChange={e => setMp(m => ({ ...m, phone: e.target.value }))}>{colOpts.map(c => <option key={c}>{c}</option>)}</select></div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 110, fontSize: 13, color: "var(--muted)" }}>Address</div><select className="fi" style={{ flex: 1 }} value={mp.address} onChange={e => setMp(m => ({ ...m, address: e.target.value }))}>{colOpts.map(c => <option key={c}>{c}</option>)}</select></div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 110, fontSize: 13, color: "var(--muted)" }}>Birthday</div><select className="fi" style={{ flex: 1 }} value={mp.birthday} onChange={e => setMp(m => ({ ...m, birthday: e.target.value }))}>{colOpts.map(c => <option key={c}>{c}</option>)}</select></div>
+            {nameMode === "full" ? (
+              <div className="fg">
+                <label className="fl">Full Name column *</label>
+                <select className="fi" value={mp.fullName} onChange={e => setMp(m => ({ ...m, fullName: e.target.value }))}>
+                  {colOpts.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+            ) : (
+              <>
+                <div className="fg">
+                  <label className="fl">First Name column *</label>
+                  <select className="fi" value={mp.firstName} onChange={e => setMp(m => ({ ...m, firstName: e.target.value }))}>
+                    {colOpts.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div className="fg">
+                  <label className="fl">Last Name column</label>
+                  <select className="fi" value={mp.lastName} onChange={e => setMp(m => ({ ...m, lastName: e.target.value }))}>
+                    {colOpts.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              </>
+            )}
+            <div className="fg">
+              <label className="fl">Phone column *</label>
+              <select className="fi" value={mp.phone} onChange={e => setMp(m => ({ ...m, phone: e.target.value }))}>
+                {colOpts.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div className="fg">
+              <label className="fl">Address column <span style={{ fontWeight: 400, color: "var(--muted)" }}>optional</span></label>
+              <select className="fi" value={mp.address} onChange={e => setMp(m => ({ ...m, address: e.target.value }))}>
+                {colOpts.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div className="fg">
+              <label className="fl">Birthday column <span style={{ fontWeight: 400, color: "var(--muted)" }}>optional</span></label>
+              <select className="fi" value={mp.birthday} onChange={e => setMp(m => ({ ...m, birthday: e.target.value }))}>
+                {colOpts.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
           </div>
           <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
             <button className="btn bg" style={{ flex: 1 }} onClick={() => setStep(0)}>Back</button>
@@ -453,6 +603,8 @@ function GroupDetail({ group, groups, members, setMembers, attendanceHistory, on
   const [bdayMsg, setBdayMsg] = useState(group.bdayMsg || DEFAULT_BDAY_MSG.replace("{group}", group.name));
   const [bdaySettingsOpen, setBdaySettingsOpen] = useState(false);
   const [bdaySmsOpen, setBdaySmsOpen] = useState(false);
+  const [bdayTargets, setBdayTargets] = useState([]);
+  const openBdaySms = (targets) => { setBdayTargets(targets); setBdaySmsOpen(true); };
 
   const gm = members.filter(m => (m.groupIds || []).includes(group.id));
   const filtered = gm.filter(m => m.name.toLowerCase().includes(search.toLowerCase()) || m.phone.includes(search));
@@ -462,27 +614,34 @@ function GroupDetail({ group, groups, members, setMembers, attendanceHistory, on
     : 0;
 
   // Birthday logic — members whose birthday is today (month + day match)
+  // Supports YYYY-MM-DD and MM-DD formats
   const today = new Date();
   const todayMD = `${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const getBirthdayMD = (bday) => {
+    if (!bday) return null;
+    const parts = bday.split("-");
+    if (parts.length === 3) return `${parts[1]}-${parts[2]}`; // YYYY-MM-DD
+    if (parts.length === 2) return `${parts[0]}-${parts[1]}`; // MM-DD
+    return null;
+  };
   const birthdayToday = gm.filter(m => {
-    if (!m.birthday) return false;
-    const parts = m.birthday.split("-"); // YYYY-MM-DD
-    if (parts.length < 3) return false;
-    return `${parts[1]}-${parts[2]}` === todayMD;
+    const md = getBirthdayMD(m.birthday);
+    return md === todayMD;
   });
   // Upcoming birthdays within 7 days
   const upcomingBdays = gm.filter(m => {
-    if (!m.birthday) return false;
-    const parts = m.birthday.split("-");
-    if (parts.length < 3) return false;
-    const bday = new Date(today.getFullYear(), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    const md = getBirthdayMD(m.birthday);
+    if (!md) return false;
+    const [mm, dd] = md.split("-").map(Number);
+    const bday = new Date(today.getFullYear(), mm - 1, dd);
     if (bday < today) bday.setFullYear(today.getFullYear() + 1);
     const diff = Math.ceil((bday - today) / (1000 * 60 * 60 * 24));
     return diff > 0 && diff <= 7;
   }).sort((a, b) => {
     const getNext = (m) => {
-      const p = m.birthday.split("-");
-      const d = new Date(today.getFullYear(), parseInt(p[1]) - 1, parseInt(p[2]));
+      const md = getBirthdayMD(m.birthday);
+      const [mm, dd] = (md || "01-01").split("-").map(Number);
+      const d = new Date(today.getFullYear(), mm - 1, dd);
       if (d < today) d.setFullYear(today.getFullYear() + 1);
       return d;
     };
@@ -536,15 +695,17 @@ function GroupDetail({ group, groups, members, setMembers, attendanceHistory, on
           ))}
         </div>
 
-        {/* Tabs */}
-        <div className="tabs">
-          <button className={`tab ${tab === "members" ? "act" : ""}`} onClick={() => setTab("members")}>👥 Members</button>
-          <button className={`tab ${tab === "reports" ? "act" : ""}`} onClick={() => setTab("reports")}>
-            📊 Reports {sessions.length > 0 && <span style={{ marginLeft: 4, background: "var(--brand)", color: "#fff", borderRadius: 10, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>{sessions.length}</span>}
-          </button>
-          <button className={`tab ${tab === "birthdays" ? "act" : ""}`} onClick={() => setTab("birthdays")}>
-            🎂 Birthdays {birthdayToday.length > 0 && <span style={{ marginLeft: 4, background: "var(--danger)", color: "#fff", borderRadius: 10, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>{birthdayToday.length}</span>}
-          </button>
+        {/* Tabs — sticky */}
+        <div className="tab-wrap">
+          <div className="tabs">
+            <button className={`tab ${tab === "members" ? "act" : ""}`} onClick={() => setTab("members")}>👥 Members</button>
+            <button className={`tab ${tab === "reports" ? "act" : ""}`} onClick={() => setTab("reports")}>
+              📊 Reports{sessions.length > 0 ? ` (${sessions.length})` : ""}
+            </button>
+            <button className={`tab ${tab === "birthdays" ? "act" : ""}`} onClick={() => setTab("birthdays")}>
+              🎂 Bdays{birthdayToday.length > 0 ? ` 🔴` : ""}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -655,8 +816,8 @@ function GroupDetail({ group, groups, members, setMembers, attendanceHistory, on
                   <div style={{ fontWeight: 700, fontSize: 15 }}>🎂 Today's Birthdays!</div>
                   <div style={{ fontSize: 13, color: "#8a5a00", marginTop: 2 }}>{birthdayToday.length} member{birthdayToday.length !== 1 ? "s" : ""} celebrating today</div>
                 </div>
-                <button className="btn ba" style={{ fontSize: 13, padding: "8px 14px" }} onClick={() => setBdaySmsOpen(true)}>
-                  <SmsIco s={14} /> Send
+                <button className="btn ba" style={{ fontSize: 13, padding: "8px 14px" }} onClick={() => openBdaySms(birthdayToday)}>
+                  <SmsIco s={14} /> Send All
                 </button>
               </div>
               {birthdayToday.map(m => {
@@ -669,7 +830,7 @@ function GroupDetail({ group, groups, members, setMembers, attendanceHistory, on
                       <div style={{ fontSize: 12, color: "#8a5a00" }}>🎉 Today!</div>
                     </div>
                     <div style={{ marginLeft: "auto" }}>
-                      <button className="btn ba" style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => setBdaySmsOpen(true)}>
+                      <button className="btn ba" style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => openBdaySms([m])}>
                         <SmsIco s={12} /> Wish
                       </button>
                     </div>
@@ -756,11 +917,11 @@ function GroupDetail({ group, groups, members, setMembers, attendanceHistory, on
           onSave={t => { setBdayMsg(t); setBdaySettingsOpen(false); showToast("Birthday message updated! 🎂"); }}
         />
       )}
-      {bdaySmsOpen && birthdayToday.length > 0 && (
+      {bdaySmsOpen && bdayTargets.length > 0 && (
         <BdaySmsModal
-          celebrants={birthdayToday}
+          celebrants={bdayTargets}
           template={bdayMsg}
-          onClose={() => setBdaySmsOpen(false)}
+          onClose={() => { setBdaySmsOpen(false); setBdayTargets([]); }}
           showToast={showToast}
         />
       )}
