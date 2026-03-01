@@ -388,7 +388,7 @@ export default function Attendance({ groups, members, attendanceHistory, setAtte
 
   // ── MARK ATTENDANCE ───────────────────────────────────────────────────────
   if (step === "mark") return (
-    <div style={{ paddingBottom: 160 }}>
+    <div style={{ paddingBottom: 220 }}>
       <div className="att-top">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <button className="btn bg" style={{ padding: "7px 12px", fontSize: 13 }} onClick={() => setStep("date")}><ChevL /> Back</button>

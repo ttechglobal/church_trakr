@@ -4,10 +4,11 @@ import { useAuth } from "../../hooks/useAuth";
 import { SmsIco, GrpIco, MemIco, UsersIco, CreditIco, SendIco } from "../../components/ui/Icons";
 
 const ACTIONS = [
-  { label: "Send to Absentees",    sub: "Reach members who missed service", icon: "📋", bg: "#fde8cc", to: "/messaging/send?type=absentees" },
-  { label: "Send to a Group",      sub: "Message an entire group at once",  icon: "👥", bg: "#d4f1e4", to: "/messaging/send?type=group"     },
-  { label: "Send to Single Number",sub: "Message one person directly",      icon: "📱", bg: "#e8d4f5", to: "/messaging/send?type=single"    },
-  { label: "Send to All Members",  sub: "Broadcast to your full member list", icon: "📣", bg: "#cce8ff", to: "/messaging/send?type=all"    },
+  { label: "Send to Absentees",    sub: "Reach members who missed service",  icon: "📋", bg: "#fde8cc", to: "/messaging/send?type=absentees" },
+  { label: "Send to Attendees",    sub: "Thank members who came to service", icon: "🙏", bg: "#d4f1e4", to: "/messaging/send?type=attendees" },
+  { label: "Send to a Group",      sub: "Message an entire group at once",   icon: "👥", bg: "#e8d4f5", to: "/messaging/send?type=group"     },
+  { label: "Send to Single Number",sub: "Message one person directly",       icon: "📱", bg: "#cce8ff", to: "/messaging/send?type=single"    },
+  { label: "Send to All Members",  sub: "Broadcast to your full member list",icon: "📣", bg: "#f5e8cc", to: "/messaging/send?type=all"       },
 ];
 
 export default function MessagingHome() {

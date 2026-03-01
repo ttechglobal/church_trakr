@@ -1,34 +1,27 @@
 // src/services/api/index.js
-// All Supabase data operations. Returns { data, error } matching Supabase conventions.
-// Includes automatic retry logic for network errors (useful on poor connections).
-
 import { supabase } from "../supabaseClient";
 
 // ── Retry helper ──────────────────────────────────────────────────────────────
-// Retries a Supabase operation up to `maxRetries` times on network-level failures.
-// Supabase returns { data, error } — we only retry when error looks network-related.
 const withRetry = async (fn, maxRetries = 2, delayMs = 800) => {
-  let lastResult;
+  let last;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    lastResult = await fn();
-    const { error } = lastResult;
-    if (!error) return lastResult;
-    // Only retry on network/fetch errors, not on auth or constraint errors
-    const isNetworkError =
+    last = await fn();
+    const { error } = last;
+    if (!error) return last;
+    const isNetwork =
       error.message?.includes("fetch") ||
       error.message?.includes("network") ||
       error.message?.includes("timeout") ||
       error.message?.includes("Failed to fetch") ||
-      error.code === "PGRST301" || // Connection issues
-      (error.status >= 500 && error.status < 600); // Server errors
-    if (!isNetworkError || attempt === maxRetries) return lastResult;
+      error.code === "PGRST301" ||
+      (error.status >= 500 && error.status < 600);
+    if (!isNetwork || attempt === maxRetries) return last;
     await new Promise(r => setTimeout(r, delayMs * (attempt + 1)));
   }
-  return lastResult;
+  return last;
 };
 
 // ── GROUPS ────────────────────────────────────────────────────────────────────
-
 export const fetchGroups = (churchId) =>
   withRetry(() => supabase.from("groups").select("*").eq("church_id", churchId).order("name"));
 
@@ -42,7 +35,6 @@ export const deleteGroup = (id) =>
   withRetry(() => supabase.from("groups").delete().eq("id", id));
 
 // ── MEMBERS ───────────────────────────────────────────────────────────────────
-
 export const fetchMembers = (churchId) =>
   withRetry(() => supabase.from("members").select("*").eq("church_id", churchId).order("name"));
 
@@ -62,63 +54,46 @@ export const createMembersBulk = (members) => {
 };
 
 export const updateMember = (id, updates) => {
-  const row = { ...updates };
-  if (row.birthday === "") delete row.birthday;
-  delete row.id;
-  delete row.church_id;
-  delete row.created_at;
-  return withRetry(() => supabase.from("members").update(row).eq("id", id).select().single());
+  const u = { ...updates };
+  if (!u.birthday) delete u.birthday;
+  return withRetry(() => supabase.from("members").update(u).eq("id", id).select().single());
 };
 
 export const deleteMember = (id) =>
   withRetry(() => supabase.from("members").delete().eq("id", id));
 
 // ── ATTENDANCE ────────────────────────────────────────────────────────────────
-
-export const fetchAttendance = async (churchId) => {
-  const result = await withRetry(() =>
-    supabase
-      .from("attendance_sessions")
+export const fetchAttendance = (churchId) =>
+  withRetry(() =>
+    supabase.from("attendance_sessions")
       .select("*, records:attendance_records(*)")
       .eq("church_id", churchId)
       .order("date", { ascending: false })
-      .limit(200) // Lazy-load cap — avoids fetching thousands of old records on login
+      .limit(200)
   );
-  return result;
-};
 
 export const saveAttendanceSession = async (session) => {
-  const upsertRow = {
-    church_id: session.church_id,
-    group_id:  session.groupId,
-    date:      session.date,
-  };
-  if (session.id) upsertRow.id = session.id;
+  const { id, groupId, date, church_id, records } = session;
 
+  // Upsert the session row
   const { data: sess, error: sessErr } = await withRetry(() =>
-    supabase
-      .from("attendance_sessions")
-      .upsert(upsertRow, { onConflict: session.id ? "id" : "group_id,date" })
-      .select()
-      .single()
+    supabase.from("attendance_sessions")
+      .upsert({ id: id || undefined, group_id: groupId, date, church_id }, { onConflict: "group_id,date" })
+      .select().single()
   );
   if (sessErr) return { data: null, error: sessErr };
 
-  await withRetry(() =>
-    supabase.from("attendance_records").delete().eq("session_id", sess.id)
-  );
+  // Delete old records for this session then re-insert
+  await supabase.from("attendance_records").delete().eq("session_id", sess.id);
 
-  const records = session.records.map(r => ({
-    session_id: sess.id,
-    member_id:  r.memberId,
-    name:       r.name,
-    present:    r.present,
-  }));
-
-  if (records.length > 0) {
-    const { error: recErr } = await withRetry(() =>
-      supabase.from("attendance_records").insert(records)
-    );
+  if (records?.length) {
+    const rows = records.map(r => ({
+      session_id: sess.id,
+      member_id:  r.memberId || null,
+      name:       r.name,
+      present:    r.present,
+    }));
+    const { error: recErr } = await supabase.from("attendance_records").insert(rows);
     if (recErr) return { data: null, error: recErr };
   }
 
@@ -126,72 +101,43 @@ export const saveAttendanceSession = async (session) => {
 };
 
 // ── FIRST TIMERS ──────────────────────────────────────────────────────────────
-
 export const fetchFirstTimers = (churchId) =>
   withRetry(() =>
-    supabase.from("first_timers")
-      .select("*")
-      .eq("church_id", churchId)
-      .order("date", { ascending: false })
-      .limit(500)
+    supabase.from("first_timers").select("*").eq("church_id", churchId)
+      .order("created_at", { ascending: false }).limit(500)
   );
 
-export const createFirstTimer = (ft) => {
-  const row = { ...ft };
-  if (!row.date) row.date = new Date().toISOString().split("T")[0];
-  if (!row.visits) row.visits = [row.date];
-  return withRetry(() => supabase.from("first_timers").insert(row).select().single());
-};
+export const createFirstTimer = (ft) =>
+  withRetry(() => supabase.from("first_timers").insert(ft).select().single());
 
-export const updateFirstTimer = (id, updates) => {
-  const row = { ...updates };
-  delete row.id;
-  delete row.church_id;
-  delete row.created_at;
-  return withRetry(() => supabase.from("first_timers").update(row).eq("id", id).select().single());
-};
+export const updateFirstTimer = (id, updates) =>
+  withRetry(() => supabase.from("first_timers").update(updates).eq("id", id).select().single());
 
 export const deleteFirstTimer = (id) =>
   withRetry(() => supabase.from("first_timers").delete().eq("id", id));
 
-// First-timer attendance stored as JSONB: { "YYYY-MM-DD": { "person_id": true|false } }
+// ── FT ATTENDANCE (stored as JSONB blob per church) ───────────────────────────
 export const fetchFtAttendance = async (churchId) => {
   const { data, error } = await withRetry(() =>
-    supabase
-      .from("ft_attendance")
-      .select("attendance")
-      .eq("church_id", churchId)
-      .maybeSingle()
+    supabase.from("ft_attendance").select("attendance").eq("church_id", churchId).maybeSingle()
   );
-  return { data: data?.attendance ?? {}, error };
+  if (error) return { data: {}, error };
+  return { data: data?.attendance ?? {}, error: null };
 };
 
-export const saveFtAttendance = (churchId, attendance) =>
-  withRetry(() =>
+export const saveFtAttendance = async (churchId, attendance) => {
+  return withRetry(() =>
     supabase.from("ft_attendance")
-      .upsert({ church_id: churchId, attendance }, { onConflict: "church_id" })
+      .upsert({ church_id: churchId, attendance, updated_at: new Date().toISOString() }, { onConflict: "church_id" })
   );
-
-// ── MESSAGING ─────────────────────────────────────────────────────────────────
-
-export const fetchMessageHistory = (churchId) =>
-  withRetry(() =>
-    supabase.from("sms_logs")
-      .select("*")
-      .eq("church_id", churchId)
-      .order("created_at", { ascending: false })
-  );
-
-export const logSmsMessage = (log) =>
-  withRetry(() => supabase.from("sms_logs").insert(log).select().single());
-
-export const fetchCredits = async (churchId) => {
-  const { data, error } = await withRetry(() =>
-    supabase
-      .from("churches")
-      .select("sms_credits")
-      .eq("id", churchId)
-      .single()
-  );
-  return { data: { credits: data?.sms_credits ?? 0 }, error };
 };
+
+// ── SMS LOGS ──────────────────────────────────────────────────────────────────
+export const fetchSmsLogs = (churchId) =>
+  withRetry(() =>
+    supabase.from("sms_logs").select("*").eq("church_id", churchId)
+      .order("created_at", { ascending: false }).limit(100)
+  );
+
+export const createSmsLog = (log) =>
+  withRetry(() => supabase.from("sms_logs").insert(log).select().single());

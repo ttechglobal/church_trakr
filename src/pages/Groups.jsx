@@ -599,7 +599,7 @@ function SessionReportView({ session, group, onBack, showToast }) {
 // ── Group Detail ──────────────────────────────────────────────────────────────
 const DEFAULT_BDAY_MSG = "Dear {name}, wishing you a wonderful birthday filled with God's blessings! 🎂🙏 From all of us at {group}.";
 
-function GroupDetail({ group, groups, members, addMember, editMember, removeMember, bulkAddMembers, attendanceHistory, onBack, showToast }) {
+function GroupDetail({ group, groups, members, addMember, editMember, removeMember, bulkAddMembers, attendanceHistory, onBack, editGroup, showToast }) {
   const [tab, setTab] = useState("members"); // "members" | "reports" | "birthdays"
   const [addModal, setAddModal] = useState(false);
   const [importModal, setImportModal] = useState(false);
@@ -608,6 +608,9 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
   const [viewMember, setViewMember] = useState(null);
   const [editingMember, setEditingMember] = useState(false);
   const [viewSession, setViewSession] = useState(null);
+  const [editGroupModal, setEditGroupModal] = useState(false);
+  const [editGroupF, setEditGroupF] = useState({ name: group.name, leader: group.leader || "" });
+  const [savingGroup, setSavingGroup] = useState(false);
   const [bdayMsg, setBdayMsg] = useState(group.bdayMsg || DEFAULT_BDAY_MSG.replace("{group}", group.name));
   const [bdaySettingsOpen, setBdaySettingsOpen] = useState(false);
   const [bdaySmsOpen, setBdaySmsOpen] = useState(false);
@@ -681,6 +684,24 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
     setEditingMember(false); showToast("Member updated!");
   };
 
+  const handleSaveGroup = async () => {
+    if (!editGroupF.name.trim()) return;
+    setSavingGroup(true);
+    try {
+      const { error } = await editGroup(group.id, { name: editGroupF.name.trim(), leader: editGroupF.leader.trim() });
+      if (error) {
+        showToast("Failed to update group: " + (error.message || "unknown error") + " ❌");
+      } else {
+        setEditGroupModal(false);
+        showToast("Group updated! ✅");
+      }
+    } catch (e) {
+      showToast("Failed to update group ❌");
+    } finally {
+      setSavingGroup(false);
+    }
+  };
+
   if (viewSession) {
     return <SessionReportView session={viewSession} group={group} onBack={() => setViewSession(null)} showToast={showToast} />;
   }
@@ -703,7 +724,19 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
     <div className="page">
       <div className="ph">
         <button className="btn bg" style={{ marginBottom: 14, padding: "8px 14px" }} onClick={onBack}><ChevL /> All Groups</button>
-        <h1>{group.name}</h1><p>Leader: {group.leader}</p>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h1 style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{group.name}</h1>
+            <p>Leader: {group.leader || "—"}</p>
+          </div>
+          <button
+            className="btn bg"
+            style={{ padding: "8px 12px", fontSize: 13, flexShrink: 0, display: "flex", alignItems: "center", gap: 6 }}
+            onClick={() => { setEditGroupF({ name: group.name, leader: group.leader || "" }); setEditGroupModal(true); }}
+          >
+            <EditIco s={14} /> Edit
+          </button>
+        </div>
       </div>
       <div style={{ padding: "0 20px 12px" }}>
         <div className="smbar" style={{ marginBottom: 16 }}>
@@ -953,6 +986,33 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
           showToast={showToast}
         />
       )}
+      {editGroupModal && (
+        <Modal title="Edit Group" onClose={() => !savingGroup && setEditGroupModal(false)}>
+          <div className="fstack">
+            <div className="fg">
+              <label className="fl">Group Name *</label>
+              <input className="fi" placeholder="e.g. Youth Ministry"
+                value={editGroupF.name}
+                onChange={e => setEditGroupF(x => ({ ...x, name: e.target.value }))}
+                autoFocus
+              />
+            </div>
+            <div className="fg">
+              <label className="fl">Leader</label>
+              <input className="fi" placeholder="Leader's name"
+                value={editGroupF.leader}
+                onChange={e => setEditGroupF(x => ({ ...x, leader: e.target.value }))}
+              />
+            </div>
+            <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+              <button className="btn bg" style={{ flex: 1 }} onClick={() => setEditGroupModal(false)} disabled={savingGroup}>Cancel</button>
+              <button className="btn bp" style={{ flex: 1 }} onClick={handleSaveGroup} disabled={savingGroup || !editGroupF.name.trim()}>
+                {savingGroup ? "Saving…" : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -985,7 +1045,7 @@ export default function Groups({ groups, addGroup, editGroup, removeGroup, membe
 
   if (viewGrp) {
     const live = groups.find(g => g.id === viewGrp.id) || viewGrp;
-    return <GroupDetail group={live} groups={groups} members={members} addMember={addMember} editMember={editMember} removeMember={removeMember} bulkAddMembers={bulkAddMembers} attendanceHistory={attendanceHistory} onBack={() => setViewGrp(null)} showToast={showToast} />;
+    return <GroupDetail group={live} groups={groups} members={members} addMember={addMember} editMember={editMember} removeMember={removeMember} bulkAddMembers={bulkAddMembers} attendanceHistory={attendanceHistory} onBack={() => setViewGrp(null)} editGroup={editGroup} showToast={showToast} />;
   }
 
   // Church-wide birthday check for today
