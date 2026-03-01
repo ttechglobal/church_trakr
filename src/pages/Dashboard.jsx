@@ -85,7 +85,63 @@ export default function Dashboard({ groups, members, attendanceHistory }) {
       </div>
 
       <div className="pc">
-        {/* ── Primary Actions — BIG, MOBILE-FIRST, above recent activity ── */}
+        {/* ── Groups section ── */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <div className="stitle" style={{ margin: 0 }}>Your Groups</div>
+          <button className="btn bg" style={{ padding: "6px 14px", fontSize: 13, fontWeight: 700 }}
+            onClick={() => navigate("/groups")}>
+            See All →
+          </button>
+        </div>
+        {groups.length === 0 ? (
+          <div style={{ background: "var(--surface2)", borderRadius: 14, padding: "18px 16px", marginBottom: 24, textAlign: "center" }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>👥</div>
+            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>No groups yet</div>
+            <button className="btn bp" style={{ fontSize: 13, padding: "8px 18px" }} onClick={() => navigate("/groups")}>
+              + Create First Group
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 24 }}>
+            {groups.slice(0, 4).map(g => {
+              const cnt = members.filter(m => (m.groupIds || []).includes(g.id)).length;
+              const sessions = attendanceHistory.filter(s => s.groupId === g.id);
+              const lastSession = sessions.sort((a, b) => b.date.localeCompare(a.date))[0];
+              const rate = lastSession
+                ? Math.round(lastSession.records.filter(r => r.present).length / (lastSession.records.length || 1) * 100)
+                : null;
+              const av = g.name.charAt(0).toUpperCase();
+              const colors = ["#d4f1e4","#fde8cc","#e8d4f5","#cce8ff","#fce8e8","#d4e8ff"];
+              const bg = colors[g.name.charCodeAt(0) % colors.length];
+              return (
+                <div key={g.id} onClick={() => navigate("/groups")}
+                  style={{ background: "var(--surface)", border: "1.5px solid var(--border)", borderRadius: 14, padding: "14px 12px", cursor: "pointer", transition: "all .12s" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 9, background: bg, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 14, flexShrink: 0 }}>{av}</div>
+                    <div style={{ fontWeight: 700, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</div>
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--muted)" }}>{cnt} member{cnt !== 1 ? "s" : ""}</div>
+                  {rate !== null && (
+                    <div style={{ fontSize: 11, marginTop: 4, color: rate >= 70 ? "var(--success)" : "var(--danger)", fontWeight: 600 }}>
+                      {rate}% last attendance
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {groups.length > 4 && (
+              <div onClick={() => navigate("/groups")}
+                style={{ background: "var(--surface2)", border: "1.5px dashed var(--border)", borderRadius: 14, padding: "14px 12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 20, marginBottom: 4 }}>👥</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--brand)" }}>+{groups.length - 4} more</div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Primary Actions ── */}
         <div className="stitle" style={{ marginBottom: 12 }}>Quick Actions</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 28 }}>
           <button

@@ -71,17 +71,17 @@ function AddMemberModal({ onClose, onAdd, groupName }) {
   const [err, setErr] = useState("");
   const h = e => setF(x => ({ ...x, [e.target.name]: e.target.value }));
   const go = () => {
-    if (!f.firstName || !f.phone) { setErr("First name and phone are required"); return; }
-    onAdd({ name: `${f.firstName} ${f.lastName}`.trim(), phone: f.phone, address: f.address, birthday: f.birthday });
+    if (!f.firstName.trim()) { setErr("First name is required"); return; }
+    onAdd({ name: `${f.firstName} ${f.lastName}`.trim(), phone: f.phone.trim(), address: f.address.trim(), birthday: f.birthday });
   };
   return (
     <Modal title={groupName ? `Add Member to ${groupName}` : "Add Member"} onClose={onClose}>
       <div className="fstack">
         <div className="frow">
-          <div className="fg"><label className="fl">First Name *</label><input className="fi" name="firstName" placeholder="Adaeze" value={f.firstName} onChange={h} /></div>
+          <div className="fg"><label className="fl">First Name *</label><input className="fi" name="firstName" placeholder="Adaeze" value={f.firstName} onChange={h} autoFocus /></div>
           <div className="fg"><label className="fl">Last Name</label><input className="fi" name="lastName" placeholder="Okafor" value={f.lastName} onChange={h} /></div>
         </div>
-        <div className="fg"><label className="fl">Phone Number *</label><input className="fi" name="phone" placeholder="08012345678" value={f.phone} onChange={h} /></div>
+        <div className="fg"><label className="fl">Phone Number <span style={{ fontWeight: 400, color: "var(--muted)" }}>optional</span></label><input className="fi" name="phone" placeholder="08012345678" value={f.phone} onChange={h} /></div>
         <div className="fg"><label className="fl">Address <span style={{ fontWeight: 400, color: "var(--muted)" }}>optional</span></label><input className="fi" name="address" placeholder="14 Lagos Rd, Ikeja" value={f.address} onChange={h} /></div>
         <div className="fg"><label className="fl">Birthday <span style={{ fontWeight: 400, color: "var(--muted)" }}>optional</span></label><input className="fi" name="birthday" type="date" value={f.birthday} onChange={h} /></div>
         {err && <p style={{ color: "var(--danger)", fontSize: 13 }}>{err}</p>}
@@ -453,7 +453,7 @@ function EditMemberModal({ member, groups, onClose, onSave }) {
 }
 
 // ── Member Profile ────────────────────────────────────────────────────────────
-function MemberProfile({ member, groups, attendanceHistory, onBack, onEdit, onRemoveFromGroup, currentGroupId }) {
+function MemberProfile({ member, groups, attendanceHistory, onBack, onEdit, onRemoveFromGroup, onDeleteFromSystem, currentGroupId }) {
   const av = getAv(member.name);
   const mGroups = groups.filter(g => (member.groupIds || []).includes(g.id));
   const history = attendanceHistory.filter(h => h.records.some(r => r.memberId === member.id));
@@ -477,6 +477,12 @@ function MemberProfile({ member, groups, attendanceHistory, onBack, onEdit, onRe
           <button className="btn bp" style={{ flex: 1 }} onClick={onEdit}><EditIco s={15} /> Edit</button>
           {currentGroupId && <button className="btn bod" style={{ flex: 1 }} onClick={onRemoveFromGroup}><TrashIco s={15} /> Remove from Group</button>}
         </div>
+        {onDeleteFromSystem && (
+          <button className="btn bg" style={{ width: "100%", color: "var(--danger)", borderColor: "#f5c8c8", marginBottom: 16, fontSize: 13 }}
+            onClick={onDeleteFromSystem}>
+            🗑️ Delete from entire system
+          </button>
+        )}
         <div className="card" style={{ marginBottom: 14 }}>
           <div className="stitle" style={{ marginBottom: 8 }}>Contact Info</div>
           <div className="prow"><PhoneIco /><div style={{ marginLeft: 10 }}><div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".04em" }}>Phone</div><div style={{ fontSize: 14, fontWeight: 500, marginTop: 2 }}>{member.phone}</div></div></div>
@@ -660,7 +666,8 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
   });
 
   const handleAdd = async ({ name, phone, address, birthday }) => {
-    const ex = members.find(m => m.phone === phone);
+    // Only match existing member by phone if phone was actually entered
+    const ex = phone ? members.find(m => m.phone && m.phone === phone) : null;
     if (ex) {
       const { error } = await editMember(ex.id, { groupIds: [...new Set([...(ex.groupIds || []), group.id])] });
       if (error) { showToast("Failed to add member ❌"); return; }
@@ -714,6 +721,12 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
           onBack={() => setViewMember(null)} onEdit={() => setEditingMember(true)}
           currentGroupId={group.id}
           onRemoveFromGroup={() => { handleRemove(live.id); setViewMember(null); }}
+          onDeleteFromSystem={async () => {
+            const { error } = await removeMember(live.id);
+            if (error) { showToast("Failed to delete member ❌"); return; }
+            setViewMember(null);
+            showToast("Member deleted from system.");
+          }}
         />
         {editingMember && <EditMemberModal member={live} groups={groups} onClose={() => setEditingMember(false)} onSave={handleSaveMember} />}
       </>
@@ -961,15 +974,45 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
           showToast(`${importedMembers.length} members imported into ${group.name}! ✅`);
         }
       }} />}
-      {removeId && (
-        <Modal title="Remove from Group?" onClose={() => setRemoveId(null)}>
-          <p style={{ color: "var(--muted)", marginBottom: 20, fontSize: 14 }}>This member will remain in the system but removed from <strong>{group.name}</strong>.</p>
-          <div style={{ display: "flex", gap: 10 }}>
-            <button className="btn bg" style={{ flex: 1 }} onClick={() => setRemoveId(null)}>Cancel</button>
-            <button className="btn bd" style={{ flex: 1 }} onClick={() => handleRemove(removeId)}>Remove</button>
-          </div>
-        </Modal>
-      )}
+      {removeId && (() => {
+        const mem = members.find(m => m.id === removeId);
+        const [deleting, setDeleting] = useState(false);
+        const doRemoveFromGroup = async () => {
+          setDeleting(true);
+          await handleRemove(removeId);
+          setDeleting(false);
+          setRemoveId(null);
+        };
+        const doDeleteFromSystem = async () => {
+          if (!mem) return;
+          setDeleting(true);
+          const { error } = await removeMember(removeId);
+          setDeleting(false);
+          if (error) { showToast("Failed to delete member ❌"); return; }
+          setRemoveId(null);
+          showToast("Member deleted from system.");
+        };
+        return (
+          <Modal title={`Remove ${mem?.name || "Member"}?`} onClose={() => !deleting && setRemoveId(null)}>
+            <p style={{ color: "var(--muted)", marginBottom: 16, fontSize: 14 }}>
+              What would you like to do with <strong>{mem?.name}</strong>?
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <button className="btn bg" style={{ width: "100%", textAlign: "left", padding: "14px 16px", borderRadius: 12 }}
+                onClick={doRemoveFromGroup} disabled={deleting}>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>👥 Remove from {group.name}</div>
+                <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>Member stays in the system, can be re-added to any group</div>
+              </button>
+              <button className="btn bd" style={{ width: "100%", textAlign: "left", padding: "14px 16px", borderRadius: 12 }}
+                onClick={doDeleteFromSystem} disabled={deleting}>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>🗑️ Delete from entire system</div>
+                <div style={{ fontSize: 12, marginTop: 3, opacity: 0.75 }}>Permanently removes all their records</div>
+              </button>
+              <button className="btn bg" style={{ width: "100%" }} onClick={() => setRemoveId(null)} disabled={deleting}>Cancel</button>
+            </div>
+          </Modal>
+        );
+      })()}
       {bdaySettingsOpen && (
         <BdaySettingsModal
           groupName={group.name}

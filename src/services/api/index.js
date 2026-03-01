@@ -6,15 +6,13 @@ const withRetry = async (fn, maxRetries = 2, delayMs = 800) => {
   let last;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     last = await fn();
-    const { error } = last;
-    if (!error) return last;
+    if (!last.error) return last;
+    const msg = last.error?.message || "";
     const isNetwork =
-      error.message?.includes("fetch") ||
-      error.message?.includes("network") ||
-      error.message?.includes("timeout") ||
-      error.message?.includes("Failed to fetch") ||
-      error.code === "PGRST301" ||
-      (error.status >= 500 && error.status < 600);
+      msg.includes("fetch") || msg.includes("network") ||
+      msg.includes("timeout") || msg.includes("Failed to fetch") ||
+      last.error?.code === "PGRST301" ||
+      (last.error?.status >= 500 && last.error?.status < 600);
     if (!isNetwork || attempt === maxRetries) return last;
     await new Promise(r => setTimeout(r, delayMs * (attempt + 1)));
   }
@@ -75,20 +73,48 @@ export const fetchAttendance = (churchId) =>
 export const saveAttendanceSession = async (session) => {
   const { id, groupId, date, church_id, records } = session;
 
-  // Upsert the session row
-  const { data: sess, error: sessErr } = await withRetry(() =>
-    supabase.from("attendance_sessions")
-      .upsert({ id: id || undefined, group_id: groupId, date, church_id }, { onConflict: "group_id,date" })
-      .select().single()
-  );
-  if (sessErr) return { data: null, error: sessErr };
+  let sessId = id;
 
-  // Delete old records for this session then re-insert
-  await supabase.from("attendance_records").delete().eq("session_id", sess.id);
+  if (id) {
+    // Editing an existing session — just update the date if needed
+    const { data: updated, error: updErr } = await withRetry(() =>
+      supabase.from("attendance_sessions")
+        .update({ date })
+        .eq("id", id)
+        .select()
+        .single()
+    );
+    if (updErr) return { data: null, error: updErr };
+    sessId = updated.id;
+  } else {
+    // New session — check if one already exists for this group+date
+    const { data: existing } = await supabase
+      .from("attendance_sessions")
+      .select("id")
+      .eq("group_id", groupId)
+      .eq("date", date)
+      .maybeSingle();
+
+    if (existing?.id) {
+      sessId = existing.id;
+    } else {
+      const { data: created, error: createErr } = await withRetry(() =>
+        supabase.from("attendance_sessions")
+          .insert({ group_id: groupId, date, church_id })
+          .select()
+          .single()
+      );
+      if (createErr) return { data: null, error: createErr };
+      sessId = created.id;
+    }
+  }
+
+  // Delete old records then re-insert
+  await supabase.from("attendance_records").delete().eq("session_id", sessId);
 
   if (records?.length) {
     const rows = records.map(r => ({
-      session_id: sess.id,
+      session_id: sessId,
       member_id:  r.memberId || null,
       name:       r.name,
       present:    r.present,
@@ -97,7 +123,7 @@ export const saveAttendanceSession = async (session) => {
     if (recErr) return { data: null, error: recErr };
   }
 
-  return { data: sess, error: null };
+  return { data: { id: sessId, group_id: groupId, date, church_id }, error: null };
 };
 
 // ── FIRST TIMERS ──────────────────────────────────────────────────────────────
@@ -107,16 +133,26 @@ export const fetchFirstTimers = (churchId) =>
       .order("created_at", { ascending: false }).limit(500)
   );
 
-export const createFirstTimer = (ft) =>
-  withRetry(() => supabase.from("first_timers").insert(ft).select().single());
+export const createFirstTimer = (ft) => {
+  // Ensure visits is an array and date is a plain date string
+  const row = {
+    ...ft,
+    visits: ft.visits ?? [],
+    date:   ft.date ? ft.date.split("T")[0] : new Date().toISOString().split("T")[0],
+  };
+  return withRetry(() => supabase.from("first_timers").insert(row).select().single());
+};
 
-export const updateFirstTimer = (id, updates) =>
-  withRetry(() => supabase.from("first_timers").update(updates).eq("id", id).select().single());
+export const updateFirstTimer = (id, updates) => {
+  const u = { ...updates };
+  if (u.date) u.date = u.date.split("T")[0];
+  return withRetry(() => supabase.from("first_timers").update(u).eq("id", id).select().single());
+};
 
 export const deleteFirstTimer = (id) =>
   withRetry(() => supabase.from("first_timers").delete().eq("id", id));
 
-// ── FT ATTENDANCE (stored as JSONB blob per church) ───────────────────────────
+// ── FT ATTENDANCE ─────────────────────────────────────────────────────────────
 export const fetchFtAttendance = async (churchId) => {
   const { data, error } = await withRetry(() =>
     supabase.from("ft_attendance").select("attendance").eq("church_id", churchId).maybeSingle()
@@ -125,12 +161,12 @@ export const fetchFtAttendance = async (churchId) => {
   return { data: data?.attendance ?? {}, error: null };
 };
 
-export const saveFtAttendance = async (churchId, attendance) => {
-  return withRetry(() =>
+export const saveFtAttendance = async (churchId, attendance) =>
+  withRetry(() =>
     supabase.from("ft_attendance")
-      .upsert({ church_id: churchId, attendance, updated_at: new Date().toISOString() }, { onConflict: "church_id" })
+      .upsert({ church_id: churchId, attendance, updated_at: new Date().toISOString() },
+               { onConflict: "church_id" })
   );
-};
 
 // ── SMS LOGS ──────────────────────────────────────────────────────────────────
 export const fetchSmsLogs = (churchId) =>

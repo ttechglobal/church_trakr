@@ -20,6 +20,7 @@ import Dashboard    from "./pages/Dashboard";
 import Groups       from "./pages/Groups";
 import Members      from "./pages/Members";
 import Attendance   from "./pages/Attendance";
+import Absentees    from "./pages/Absentees";
 import FirstTimers  from "./pages/FirstTimers";
 import Settings     from "./pages/Settings";
 import MessagingHome   from "./pages/messaging/MessagingHome";
@@ -154,6 +155,7 @@ function AppShell() {
           <Route path="/groups/*"          element={<Groups         {...shared} />} />
           <Route path="/members"           element={<Members        {...shared} />} />
           <Route path="/attendance"        element={<Attendance     {...shared} />} />
+          <Route path="/absentees"         element={<Absentees      {...shared} />} />
           <Route path="/firsttimers"       element={<FirstTimers    {...shared} />} />
           <Route path="/settings"          element={<Settings       {...shared} />} />
           <Route path="/messaging"         element={<MessagingHome   showToast={showToast} />} />

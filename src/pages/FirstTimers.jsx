@@ -16,14 +16,13 @@ function FirstTimerModal({ existing, onClose, onSave }) {
   const h = e => setF(x => ({ ...x, [e.target.name]: e.target.value }));
   const go = () => {
     if (!f.name.trim())  { setErr("Name is required"); return; }
-    if (!f.phone.trim()) { setErr("Phone number is required"); return; }
     onSave({ ...f, name: f.name.trim(), phone: f.phone.trim(), address: f.address.trim() });
   };
   return (
     <Modal title={existing ? "Edit Visitor" : "Record First Timer"} onClose={onClose}>
       <div className="fstack">
         <div className="fg"><label className="fl">Full Name *</label><input className="fi" name="name" value={f.name} onChange={h} placeholder="Visitor's full name" autoFocus /></div>
-        <div className="fg"><label className="fl">Phone Number *</label><input className="fi" name="phone" type="tel" value={f.phone} onChange={h} placeholder="080xxxxxxxx" /></div>
+        <div className="fg"><label className="fl">Phone Number <span style={{ fontWeight:400,color:"var(--muted)" }}>optional</span></label><input className="fi" name="phone" type="tel" value={f.phone} onChange={h} placeholder="080xxxxxxxx" /></div>
         <div className="fg"><label className="fl">Address <span style={{ fontWeight:400,color:"var(--muted)" }}>optional</span></label><input className="fi" name="address" value={f.address} onChange={h} placeholder="Area or full address" /></div>
         <div className="fg"><label className="fl">Date of first visit</label><input className="fi" name="date" type="date" value={f.date} onChange={h} /></div>
         {err && <p style={{ color:"var(--danger)",fontSize:13 }}>{err}</p>}

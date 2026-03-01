@@ -10,6 +10,7 @@ const MAIN_NAV = [
   { to: "/groups",      label: "Groups",       Icon: GrpIco  },
   { to: "/members",     label: "Members",      Icon: MemIco  },
   { to: "/attendance",  label: "Attendance",   Icon: AttIco  },
+  { to: "/absentees",   label: "Absentees",    Icon: () => <span style={{fontSize:16}}>📋</span> },
   { to: "/firsttimers", label: "First Timers", Icon: StarIco },
   { to: "/messaging",   label: "Messaging",    Icon: MsgIco  },
   { to: "/settings",    label: "Settings",     Icon: SetIco  },
@@ -17,11 +18,11 @@ const MAIN_NAV = [
 
 // Bottom nav — 5 most used pages on mobile
 const BOTTOM_NAV = [
-  { to: "/",            label: "Home",    Icon: HomeIco },
-  { to: "/groups",      label: "Groups",  Icon: GrpIco  },
-  { to: "/attendance",  label: "Attend",  Icon: AttIco  },
-  { to: "/firsttimers", label: "Visitors",Icon: StarIco },
-  { to: "/messaging",   label: "Message", Icon: MsgIco  },
+  { to: "/",            label: "Home",     Icon: HomeIco },
+  { to: "/attendance",  label: "Attend",   Icon: AttIco  },
+  { to: "/absentees",   label: "Absent",   Icon: () => <span style={{fontSize:16}}>📋</span> },
+  { to: "/firsttimers", label: "Visitors", Icon: StarIco },
+  { to: "/messaging",   label: "Message",  Icon: MsgIco  },
 ];
 
 export function AppLayout({ children }) {
