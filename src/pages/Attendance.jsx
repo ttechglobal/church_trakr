@@ -1,7 +1,7 @@
 // src/pages/Attendance.jsx
 import { useState } from "react";
 import { Modal } from "../components/ui/Modal";
-import { getAv, fmtDate, uid } from "../lib/helpers";
+import { getAv, fmtDate } from "../lib/helpers";
 import { ChevL, ChevR, SrchIco, SmsIco } from "../components/ui/Icons";
 
 // ── SMS Modal ─────────────────────────────────────────────────────────────────
@@ -41,13 +41,13 @@ function SmsModal({ absentees, onClose, showToast }) {
   );
 }
 
-// ── Session Summary View (reusable for viewing past sessions) ─────────────────
+// ── Session Summary ───────────────────────────────────────────────────────────
 function SessionSummary({ session, group, onBack, onContinueMarking, showToast }) {
   const [smsModal, setSmsModal] = useState(false);
-  const recs = session.records;
-  const presentCnt = recs.filter(r => r.present === true).length;
-  const absentCnt  = recs.filter(r => r.present === false).length;
-  const absentList = recs.filter(r => r.present === false);
+  const recs        = session.records;
+  const presentCnt  = recs.filter(r => r.present === true).length;
+  const absentCnt   = recs.filter(r => r.present === false).length;
+  const absentList  = recs.filter(r => r.present === false);
 
   return (
     <div className="page">
@@ -57,7 +57,6 @@ function SessionSummary({ session, group, onBack, onContinueMarking, showToast }
         <p>{group?.name} · {fmtDate(session.date)}</p>
       </div>
       <div className="pc">
-        {/* Stats */}
         <div className="smbar" style={{ marginBottom: 20 }}>
           {[["Total", recs.length, "var(--brand)"], ["Present", presentCnt, "var(--success)"], ["Absent", absentCnt, "var(--danger)"]].map(([l, v, c]) => (
             <div key={l} className="smbox">
@@ -66,32 +65,21 @@ function SessionSummary({ session, group, onBack, onContinueMarking, showToast }
             </div>
           ))}
         </div>
-
-        {/* Attendance rate bar */}
         <div style={{ marginBottom: 20 }}>
           <div style={{ background: "var(--surface2)", borderRadius: 12, overflow: "hidden", height: 14 }}>
-            <div style={{
-              width: recs.length ? `${(presentCnt / recs.length) * 100}%` : "0%",
-              height: "100%", background: "linear-gradient(90deg,var(--success),#5ad98a)",
-              borderRadius: 12, transition: "width .8s cubic-bezier(.34,1.2,.64,1)"
-            }} />
+            <div style={{ width: recs.length ? `${(presentCnt / recs.length) * 100}%` : "0%", height: "100%", background: "linear-gradient(90deg,var(--success),#5ad98a)", borderRadius: 12, transition: "width .8s cubic-bezier(.34,1.2,.64,1)" }} />
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
             <span style={{ fontSize: 12, color: "var(--muted)" }}>Attendance rate</span>
-            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--brand)" }}>
-              {recs.length ? Math.round((presentCnt / recs.length) * 100) : 0}%
-            </span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--brand)" }}>{recs.length ? Math.round((presentCnt / recs.length) * 100) : 0}%</span>
           </div>
         </div>
 
-        {/* Absentees */}
         {absentList.length > 0 ? (
           <div className="card" style={{ marginBottom: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <div className="stitle" style={{ margin: 0 }}>Absentees ({absentList.length})</div>
-              <button className="btn ba" style={{ padding: "7px 12px", fontSize: 13 }} onClick={() => setSmsModal(true)}>
-                <SmsIco s={14} /> SMS
-              </button>
+              <button className="btn ba" style={{ padding: "7px 12px", fontSize: 13 }} onClick={() => setSmsModal(true)}><SmsIco s={14} /> SMS</button>
             </div>
             {absentList.map(r => {
               const av = getAv(r.name);
@@ -115,7 +103,6 @@ function SessionSummary({ session, group, onBack, onContinueMarking, showToast }
           </div>
         )}
 
-        {/* Who attended */}
         {presentCnt > 0 && (
           <div className="card" style={{ marginBottom: 16 }}>
             <div className="stitle" style={{ marginBottom: 12 }}>Who Attended ({presentCnt})</div>
@@ -132,13 +119,8 @@ function SessionSummary({ session, group, onBack, onContinueMarking, showToast }
           </div>
         )}
 
-        {/* Actions */}
         <div style={{ display: "flex", gap: 10 }}>
-          {onContinueMarking && (
-            <button className="btn bg" style={{ flex: 1 }} onClick={onContinueMarking}>
-              ✏️ Continue Marking
-            </button>
-          )}
+          {onContinueMarking && <button className="btn bg" style={{ flex: 1 }} onClick={onContinueMarking}>✏️ Edit</button>}
           <button className="btn bp" style={{ flex: 1 }} onClick={onBack}>Done</button>
         </div>
       </div>
@@ -154,90 +136,61 @@ export default function Attendance({ groups, members, attendanceHistory, setAtte
   const [selDate, setSelDate] = useState(new Date().toISOString().split("T")[0]);
   const [recs, setRecs] = useState([]);
   const [search, setSearch] = useState("");
-  // For viewing a past session from the date picker
   const [viewingSession, setViewingSession] = useState(null);
-  // sessionId being edited (for update vs insert)
   const [editingSessionId, setEditingSessionId] = useState(null);
-
   const [saving, setSaving] = useState(false);
 
-  const startMarking = (g) => {
-    setSelGrp(g);
-    setSearch("");
-    setStep("date");
-  };
+  const startMarking = (g) => { setSelGrp(g); setSearch(""); setStep("date"); };
 
-  // When user picks a date — check if session exists
   const proceedFromDate = () => {
-    const existing = attendanceHistory.find(
-      h => h.groupId === selGrp.id && h.date === selDate
-    );
+    const existing = attendanceHistory.find(h => h.groupId === selGrp.id && h.date === selDate);
     if (existing) {
-      // Load existing records so they can continue marking
       setRecs(existing.records.map(r => ({ ...r })));
       setEditingSessionId(existing.id);
     } else {
-      // Fresh session
+      // Default ALL to present — user only taps those who are absent
       const gm = members.filter(m => (m.groupIds || []).includes(selGrp.id));
-      setRecs(gm.map(m => ({ memberId: m.id, name: m.name, present: null })));
+      setRecs(gm.map(m => ({ memberId: m.id, name: m.name, present: true })));
       setEditingSessionId(null);
     }
     setStep("mark");
   };
 
-  const toggle = (id, val) => setRecs(rs => rs.map(r => r.memberId === id ? { ...r, present: r.present === val ? null : val } : r));
-  const markAll = val => setRecs(rs => rs.map(r => ({ ...r, present: val })));
+  // One tap flips between present ↔ absent
+  const toggleAbsent    = (id) => setRecs(rs => rs.map(r => r.memberId === id ? { ...r, present: !r.present } : r));
+  const markAllPresent  = ()   => setRecs(rs => rs.map(r => ({ ...r, present: true })));
+  const markAllAbsent   = ()   => setRecs(rs => rs.map(r => ({ ...r, present: false })));
+
   const presentCnt = recs.filter(r => r.present === true).length;
   const absentCnt  = recs.filter(r => r.present === false).length;
-  const absentList = recs.filter(r => r.present === false);
   const filtered   = recs.filter(r => r.name.toLowerCase().includes(search.toLowerCase()));
 
   const save = async () => {
-    const session = {
-      id:      editingSessionId || undefined,
-      groupId: selGrp.id,
-      date:    selDate,
-      records: recs.map(r => ({ ...r })),
-    };
+    const session = { id: editingSessionId || undefined, groupId: selGrp.id, date: selDate, records: recs.map(r => ({ ...r })) };
     setSaving(true);
     const { data, error } = await saveAttendance(session);
     setSaving(false);
-    if (error) {
-      const msg = error.message || "";
-      if (msg.includes("fetch") || msg.includes("network")) {
-        showToast("Network error — please check your connection and try again ❌");
-      } else {
-        showToast("Failed to save — " + (msg || "unknown error"));
-      }
-      return;
-    }
+    if (error) { showToast("Failed to save — " + (error.message || "unknown error") + " ❌"); return; }
     const savedId = data?.id || editingSessionId;
     if (!editingSessionId && savedId) setEditingSessionId(savedId);
     showToast("Attendance saved! ✅");
     setStep("summary");
   };
 
-  // Build the saved session for the summary view
   const currentSession = editingSessionId
     ? attendanceHistory.find(s => s.id === editingSessionId) || { id: editingSessionId, groupId: selGrp?.id, date: selDate, records: recs }
     : { id: null, groupId: selGrp?.id, date: selDate, records: recs };
 
-  // ── Viewing a past session from the date screen ───────────────────────────
   if (viewingSession) {
     const grp = groups.find(g => g.id === viewingSession.groupId);
     return (
-      <SessionSummary
-        session={viewingSession}
-        group={grp}
+      <SessionSummary session={viewingSession} group={grp}
         onBack={() => setViewingSession(null)}
         onContinueMarking={() => {
-          setSelGrp(grp);
-          setSelDate(viewingSession.date);
+          setSelGrp(grp); setSelDate(viewingSession.date);
           setRecs(viewingSession.records.map(r => ({ ...r })));
           setEditingSessionId(viewingSession.id);
-          setSearch("");
-          setViewingSession(null);
-          setStep("mark");
+          setSearch(""); setViewingSession(null); setStep("mark");
         }}
         showToast={showToast}
       />
@@ -246,30 +199,25 @@ export default function Attendance({ groups, members, attendanceHistory, setAtte
 
   // ── GROUP SELECTION ───────────────────────────────────────────────────────
   if (step === "group") {
-    // Build "recent sessions" across all groups for quick access
-    const recentSessions = [...attendanceHistory]
-      .sort((a, b) => b.date.localeCompare(a.date))
-      .slice(0, 5);
-
+    const recentSessions = [...attendanceHistory].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
     return (
       <div className="page">
-        <div className="ph"><h1>Attendance</h1><p>Select a group to begin</p></div>
+        <div className="ph"><h1>Attendance</h1><p>Select a group to mark</p></div>
         <div className="pc">
-          {/* Recent sessions quick-access */}
           {recentSessions.length > 0 && (
             <div style={{ marginBottom: 20 }}>
               <div className="stitle" style={{ marginBottom: 10 }}>Recent Sessions</div>
               {recentSessions.map(s => {
                 const grp = groups.find(g => g.id === s.groupId);
-                const presentCount = s.records.filter(r => r.present === true).length;
-                const total = s.records.length;
-                const rate = total ? Math.round((presentCount / total) * 100) : 0;
+                const pc = s.records.filter(r => r.present === true).length;
+                const tot = s.records.length;
+                const rate = tot ? Math.round((pc / tot) * 100) : 0;
                 return (
                   <div key={s.id} className="li" onClick={() => setViewingSession(s)}>
                     <div style={{ width: 42, height: 42, borderRadius: 12, background: "var(--surface2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>📋</div>
                     <div className="li-info">
                       <div className="li-name">{grp?.name || "Unknown Group"}</div>
-                      <div className="li-sub">{fmtDate(s.date)} · {presentCount}/{total} present</div>
+                      <div className="li-sub">{fmtDate(s.date)} · {pc}/{tot} present</div>
                     </div>
                     <div style={{ textAlign: "right", flexShrink: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: 15, color: rate >= 70 ? "var(--success)" : rate >= 50 ? "var(--accent)" : "var(--danger)" }}>{rate}%</div>
@@ -281,18 +229,16 @@ export default function Attendance({ groups, members, attendanceHistory, setAtte
               <div className="stitle" style={{ marginTop: 20, marginBottom: 10 }}>Mark New Session</div>
             </div>
           )}
-
           {groups.map(g => {
             const cnt = members.filter(m => (m.groupIds || []).includes(g.id)).length;
             const av = getAv(g.name);
-            // Count sessions for this group
-            const sessionCount = attendanceHistory.filter(h => h.groupId === g.id).length;
+            const sc = attendanceHistory.filter(h => h.groupId === g.id).length;
             return (
               <div key={g.id} className="li" onClick={() => startMarking(g)}>
                 <div className="av" style={{ background: av.bg, color: av.color }}>{av.initials}</div>
                 <div className="li-info">
                   <div className="li-name">{g.name}</div>
-                  <div className="li-sub">{cnt} members · {sessionCount} session{sessionCount !== 1 ? "s" : ""}</div>
+                  <div className="li-sub">{cnt} members · {sc} session{sc !== 1 ? "s" : ""}</div>
                 </div>
                 <ChevR />
               </div>
@@ -308,15 +254,8 @@ export default function Attendance({ groups, members, attendanceHistory, setAtte
   if (step === "date") {
     const sessionsForGroup = attendanceHistory.filter(h => h.groupId === selGrp.id);
     const selectedSession  = sessionsForGroup.find(s => s.date === selDate);
-
-    // Smart quick-select: this Sunday + last Sunday only
-    const thisSunday = (() => {
-      const d = new Date(); d.setDate(d.getDate() - d.getDay()); return d.toISOString().split("T")[0];
-    })();
-    const lastSunday = (() => {
-      const d = new Date(); d.setDate(d.getDate() - d.getDay() - 7); return d.toISOString().split("T")[0];
-    })();
-    const quickDates = [thisSunday, lastSunday];
+    const thisSunday = (() => { const d = new Date(); d.setDate(d.getDate() - d.getDay()); return d.toISOString().split("T")[0]; })();
+    const lastSunday = (() => { const d = new Date(); d.setDate(d.getDate() - d.getDay() - 7); return d.toISOString().split("T")[0]; })();
 
     return (
       <div className="page">
@@ -325,57 +264,31 @@ export default function Attendance({ groups, members, attendanceHistory, setAtte
           <h1>{selGrp.name}</h1><p>Pick a date to mark attendance</p>
         </div>
         <div className="pc">
-
-          {/* Quick-pick: this Sunday / last Sunday */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-            {quickDates.map((d, i) => {
+            {[thisSunday, lastSunday].map((d, i) => {
               const sess = sessionsForGroup.find(s => s.date === d);
-              const isSelected = selDate === d;
+              const isSel = selDate === d;
               return (
-                <div key={d} onClick={() => setSelDate(d)} style={{
-                  padding: "14px 12px", borderRadius: 14, cursor: "pointer", textAlign: "center",
-                  background: isSelected ? "var(--brand)" : "var(--surface)",
-                  color: isSelected ? "#fff" : "var(--text)",
-                  border: `2px solid ${isSelected ? "var(--brand)" : sess ? "var(--success)" : "var(--border)"}`,
-                  boxShadow: "var(--sh)", transition: "all .12s",
-                }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.7, marginBottom: 4, textTransform: "uppercase" }}>
-                    {i === 0 ? "This Sunday" : "Last Sunday"}
-                  </div>
+                <div key={d} onClick={() => setSelDate(d)} style={{ padding: "14px 12px", borderRadius: 14, cursor: "pointer", textAlign: "center", background: isSel ? "var(--brand)" : "var(--surface)", color: isSel ? "#fff" : "var(--text)", border: `2px solid ${isSel ? "var(--brand)" : sess ? "var(--success)" : "var(--border)"}`, boxShadow: "var(--sh)", transition: "all .12s" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.7, marginBottom: 4, textTransform: "uppercase" }}>{i === 0 ? "This Sunday" : "Last Sunday"}</div>
                   <div style={{ fontWeight: 700, fontSize: 15 }}>{fmtDate(d)}</div>
-                  {sess && (
-                    <div style={{ fontSize: 11, marginTop: 4, color: isSelected ? "rgba(255,255,255,.8)" : "var(--success)", fontWeight: 600 }}>
-                      ✓ {sess.records.filter(r => r.present === true).length}/{sess.records.length}
-                    </div>
-                  )}
-                  {!sess && (
-                    <div style={{ fontSize: 11, marginTop: 4, opacity: 0.5 }}>Not marked</div>
-                  )}
+                  {sess && <div style={{ fontSize: 11, marginTop: 4, color: isSel ? "rgba(255,255,255,.8)" : "var(--success)", fontWeight: 600 }}>✓ {sess.records.filter(r => r.present).length}/{sess.records.length}</div>}
+                  {!sess && <div style={{ fontSize: 11, marginTop: 4, opacity: 0.5 }}>Not marked</div>}
                 </div>
               );
             })}
           </div>
-
-          {/* Custom date picker */}
           <div className="fg" style={{ marginBottom: 16 }}>
             <label className="fl">Or pick a different date</label>
             <input className="fi" type="date" value={selDate} onChange={e => setSelDate(e.target.value)} />
           </div>
-
-          {/* Status of selected date */}
           {selectedSession ? (
             <div style={{ background: "#fff8e6", border: "1.5px solid var(--accent)", borderRadius: 12, padding: "14px", marginBottom: 16 }}>
               <div style={{ fontWeight: 700, fontSize: 14, color: "#8a5a00", marginBottom: 4 }}>⚡ Already recorded for {fmtDate(selDate)}</div>
-              <div style={{ fontSize: 13, color: "#8a5a00" }}>
-                {selectedSession.records.filter(r => r.present === true).length} present · {selectedSession.records.filter(r => r.present === false).length} absent
-              </div>
+              <div style={{ fontSize: 13, color: "#8a5a00" }}>{selectedSession.records.filter(r => r.present).length} present · {selectedSession.records.filter(r => !r.present).length} absent</div>
               <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                <button className="btn bg" style={{ flex: 1, fontSize: 13 }} onClick={() => setViewingSession(selectedSession)}>
-                  👁 View
-                </button>
-                <button className="btn ba" style={{ flex: 1, fontSize: 13 }} onClick={proceedFromDate}>
-                  ✏️ Edit
-                </button>
+                <button className="btn bg" style={{ flex: 1, fontSize: 13 }} onClick={() => setViewingSession(selectedSession)}>👁 View</button>
+                <button className="btn ba" style={{ flex: 1, fontSize: 13 }} onClick={proceedFromDate}>✏️ Edit</button>
               </div>
             </div>
           ) : (
@@ -386,7 +299,7 @@ export default function Attendance({ groups, members, attendanceHistory, setAtte
     );
   }
 
-  // ── MARK ATTENDANCE ───────────────────────────────────────────────────────
+  // ── MARK ATTENDANCE — absent-first ────────────────────────────────────────
   if (step === "mark") return (
     <div style={{ paddingBottom: 220 }}>
       <div className="att-top">
@@ -397,37 +310,50 @@ export default function Attendance({ groups, members, attendanceHistory, setAtte
             <div style={{ fontSize: 12, color: "var(--muted)" }}>{fmtDate(selDate)}</div>
           </div>
         </div>
+
+        {/* Hint banner */}
+        <div style={{ background: "#fff8e6", border: "1px solid #f0d080", borderRadius: 10, padding: "9px 12px", marginBottom: 10, fontSize: 13, color: "#7a5800" }}>
+          👇 Everyone is <strong>present</strong> by default — tap only those who were <strong>absent</strong>
+        </div>
+
         <div className="sw" style={{ marginBottom: 10 }}>
           <div className="si"><SrchIco /></div>
           <input className="fi" placeholder="Search members…" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn bos" style={{ flex: 1, padding: "8px", fontSize: 12 }} onClick={() => markAll(true)}>✓ Mark All Present</button>
-          <button className="btn bod" style={{ flex: 1, padding: "8px", fontSize: 12 }} onClick={() => markAll(false)}>✗ Mark All Absent</button>
+          <button className="btn bos" style={{ flex: 1, padding: "8px", fontSize: 12 }} onClick={markAllPresent}>✓ All Present</button>
+          <button className="btn bod" style={{ flex: 1, padding: "8px", fontSize: 12 }} onClick={markAllAbsent}>✗ All Absent</button>
         </div>
       </div>
 
       <div style={{ padding: "14px 16px" }}>
         {recs.length === 0 && <div className="empty"><div className="empty-ico">👥</div><p>No members in this group.</p></div>}
-        {filtered.map(r => (
-          <div key={r.memberId}
-            className={`att-item ${r.present === true ? "pr" : r.present === false ? "ab" : ""}`}>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 15 }}>{r.name}</div>
-              <div style={{ fontSize: 12, marginTop: 2, color: r.present === true ? "var(--success)" : r.present === false ? "var(--danger)" : "var(--muted)" }}>
-                {r.present === true ? "✓ Present" : r.present === false ? "✗ Absent" : "— Not marked"}
+        {filtered.map(r => {
+          const av = getAv(r.name);
+          const isAbsent = r.present === false;
+          return (
+            <div key={r.memberId} onClick={() => toggleAbsent(r.memberId)}
+              style={{
+                display: "flex", alignItems: "center", gap: 12,
+                padding: "13px 14px", borderRadius: 14, marginBottom: 8,
+                cursor: "pointer", transition: "all .12s",
+                background: isAbsent ? "#fff0f0" : "var(--surface)",
+                border: `2px solid ${isAbsent ? "var(--danger)" : "var(--border)"}`,
+              }}>
+              {/* Status pill */}
+              <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: isAbsent ? "var(--danger)" : "var(--success)", transition: "all .12s" }}>
+                <span style={{ color: "#fff", fontSize: 15, fontWeight: 800 }}>{isAbsent ? "✗" : "✓"}</span>
+              </div>
+              <div className="av" style={{ background: av.bg, color: av.color, width: 36, height: 36, borderRadius: 10, fontSize: 12, flexShrink: 0 }}>{av.initials}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</div>
+                <div style={{ fontSize: 12, marginTop: 2, color: isAbsent ? "var(--danger)" : "var(--success)", fontWeight: 600 }}>
+                  {isAbsent ? "Absent — tap to undo" : "Present"}
+                </div>
               </div>
             </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button className={`tbtn ${r.present === true ? "tp" : "tpi"}`}
-                style={{ flex: 1, minWidth: 0, padding: "10px 8px" }}
-                onClick={() => toggle(r.memberId, true)}>✓ Present</button>
-              <button className={`tbtn ${r.present === false ? "ta" : "tai"}`}
-                style={{ flex: 1, minWidth: 0, padding: "10px 8px" }}
-                onClick={() => toggle(r.memberId, false)}>✗ Absent</button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
         {filtered.length === 0 && search && <div className="empty"><p>No match for "{search}"</p></div>}
       </div>
 
@@ -442,8 +368,8 @@ export default function Attendance({ groups, members, attendanceHistory, setAtte
             <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>Absent</div>
           </div>
           <div style={{ textAlign: "center" }}>
-            <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 22, fontWeight: 700, color: "var(--muted)" }}>{recs.length - presentCnt - absentCnt}</div>
-            <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>Unmarked</div>
+            <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 22, fontWeight: 700, color: "var(--muted)" }}>{recs.length}</div>
+            <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>Total</div>
           </div>
         </div>
         <button className="btn bp" style={{ width: "100%", borderRadius: 12, padding: "14px", fontSize: 16 }} onClick={save} disabled={saving}>
@@ -453,12 +379,9 @@ export default function Attendance({ groups, members, attendanceHistory, setAtte
     </div>
   );
 
-  // ── SUMMARY (after saving) ────────────────────────────────────────────────
   if (step === "summary") {
     return (
-      <SessionSummary
-        session={currentSession}
-        group={selGrp}
+      <SessionSummary session={currentSession} group={selGrp}
         onBack={() => setStep("group")}
         onContinueMarking={() => setStep("mark")}
         showToast={showToast}
