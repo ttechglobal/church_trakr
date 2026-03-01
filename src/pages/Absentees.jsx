@@ -80,17 +80,23 @@ function AbsenteeCard({ record, member, followUp, onUpdateFollowUp }) {
             <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 1 }}>{phone || "No phone"}</div>
           </div>
 
-          {/* THE checkbox — explicit tick to mark reached */}
-          <label onClick={e => e.stopPropagation()}
-            style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", flexShrink: 0, padding: "4px 8px", borderRadius: 20,
-              background: reached ? "#d1f5e4" : "var(--surface2)", border: `1.5px solid ${reached ? "var(--success)" : "var(--border)"}`,
-              transition: "all .12s" }}>
-            <input type="checkbox" checked={reached} onChange={toggleReached}
-              style={{ width: 17, height: 17, accentColor: "var(--success)", cursor: "pointer" }} />
-            <span style={{ fontSize: 12, fontWeight: 700, color: reached ? "var(--success)" : "var(--muted)" }}>
-              {reached ? "Reached" : "Mark reached"}
+          {/* Reached checkbox + label */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, flexShrink: 0 }}
+            onClick={e => e.stopPropagation()}>
+            <label style={{ cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{
+                width: 26, height: 26, borderRadius: 7, border: `2px solid ${reached ? "var(--success)" : "var(--border)"}`,
+                background: reached ? "var(--success)" : "var(--surface)", display: "flex", alignItems: "center", justifyContent: "center",
+                transition: "all .12s",
+              }}>
+                {reached && <span style={{ color: "#fff", fontSize: 15, fontWeight: 900 }}>✓</span>}
+              </div>
+              <input type="checkbox" checked={reached} onChange={toggleReached} style={{ display: "none" }} />
+            </label>
+            <span style={{ fontSize: 9, fontWeight: 700, color: reached ? "var(--success)" : "var(--muted)", textTransform: "uppercase", letterSpacing: ".03em" }}>
+              {reached ? "Done" : "Reached?"}
             </span>
-          </label>
+          </div>
         </div>
 
         {/* Note preview */}

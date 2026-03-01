@@ -5,6 +5,7 @@ import { useAuth } from "./hooks/useAuth";
 import { AppLayout } from "./components/layout/AppLayout";
 import { Toast } from "./components/ui/Toast";
 
+import { supabase } from "./services/supabaseClient";
 import {
   fetchGroups, createGroup, updateGroup, deleteGroup,
   fetchMembers, createMember, createMembersBulk, updateMember, deleteMember,
@@ -49,6 +50,9 @@ function LoadingScreen() {
   );
 }
 
+// ── First Timers group — permanent synthetic group per church ────────────────
+const FT_GROUP_NAME = "First Timers";
+
 // ── Main app — only renders when user + church are confirmed ─────────────────
 function AppShell() {
   const { church, signOut, updateChurch } = useAuth();
@@ -59,6 +63,7 @@ function AppShell() {
   const [attendanceHistory, setAtHistory]      = useState([]);
   const [firstTimers,       setFirstTimersRaw] = useState([]);
   const [ftAttendance,      setFtAttRaw]       = useState({});
+  const [ftGroupId,         setFtGroupId]      = useState(null); // ID of the permanent "First Timers" group
   const [toast,             setToast]          = useState(null);
   const [dataLoading,       setDataLoading]    = useState(true);
   const [dataError,         setDataError]      = useState(null);
@@ -77,7 +82,17 @@ function AppShell() {
         fetchFtAttendance(churchId),
       ]);
       if (g.error) throw g.error;
-      setGroupsRaw(g.data ?? []);
+      const allGroups = g.data ?? [];
+      setGroupsRaw(allGroups);
+      // Ensure the permanent "First Timers" group exists
+      let ftGroup = allGroups.find(x => x.name === FT_GROUP_NAME);
+      if (!ftGroup) {
+        const { data: newFtG } = await supabase.from("groups")
+          .insert({ church_id: churchId, name: FT_GROUP_NAME, leader: "" })
+          .select().single();
+        if (newFtG) { ftGroup = newFtG; setGroupsRaw(p => [...p, newFtG]); }
+      }
+      if (ftGroup) setFtGroupId(ftGroup.id);
       setMembersRaw(m.data ?? []);
       setAtHistory((a.data ?? []).map(s => ({
         id: s.id, groupId: s.group_id, date: s.date, church_id: s.church_id,
@@ -106,18 +121,55 @@ function AppShell() {
   const saveAttendance = useCallback(async session => {
     const r = await saveAttendanceSession({ ...session, church_id: churchId });
     if (!r.error && r.data) {
-      const saved = { ...session, id: r.data.id };
+      const sessId = r.data.id;
+      // Normalise records to the shape the UI expects (memberId camelCase)
+      const normalised = (session.records || []).map(rec => ({
+        memberId: rec.memberId || rec.member_id || null,
+        name:     rec.name,
+        present:  rec.present,
+      }));
+      const saved = { ...session, id: sessId, records: normalised };
       setAtHistory(h => {
-        const i = h.findIndex(s => s.id === session.id);
+        const i = h.findIndex(s => s.id === sessId || s.id === session.id);
         return i >= 0 ? h.map((s, j) => j === i ? saved : s) : [...h, saved];
       });
     }
     return r;
   }, [churchId]);
 
-  const addFirstTimer    = useCallback(async ft    => { const r = await createFirstTimer({ ...ft, church_id: churchId }); if (!r.error && r.data) setFirstTimersRaw(p => [r.data, ...p]); return r; }, [churchId]);
+  const addFirstTimer = useCallback(async ft => {
+    const r = await createFirstTimer({ ...ft, church_id: churchId });
+    if (!r.error && r.data) {
+      setFirstTimersRaw(p => [r.data, ...p]);
+      // Also add as a member in the First Timers group for attendance tracking
+      if (ftGroupId) {
+        const { data: newM } = await createMember({
+          church_id: churchId, name: ft.name, phone: ft.phone || "",
+          address: ft.address || "", groupIds: [ftGroupId], status: "active",
+          _ft_id: r.data.id,
+        });
+        if (newM) setMembersRaw(p => [...p, newM]);
+      }
+    }
+    return r;
+  }, [churchId, ftGroupId]);
   const editFirstTimer   = useCallback(async (id, u) => { const r = await updateFirstTimer(id, u); if (!r.error && r.data) setFirstTimersRaw(p => p.map(x => x.id === id ? r.data : x)); return r; }, []);
-  const removeFirstTimer = useCallback(async id   => { const r = await deleteFirstTimer(id); if (!r.error) setFirstTimersRaw(p => p.filter(x => x.id !== id)); return r; }, []);
+  const removeFirstTimer = useCallback(async id => {
+    const r = await deleteFirstTimer(id);
+    if (!r.error) {
+      setFirstTimersRaw(p => p.filter(x => x.id !== id));
+      // Also remove the matching member from the First Timers group
+      if (ftGroupId) {
+        setMembersRaw(prev => {
+          const ftMember = prev.find(m => (m.groupIds || []).includes(ftGroupId) && m._ft_id === id);
+          if (ftMember) { deleteMember(ftMember.id); return prev.filter(x => x.id !== ftMember.id); }
+          // fallback: match by name if _ft_id not set
+          return prev;
+        });
+      }
+    }
+    return r;
+  }, [ftGroupId]);
 
   const setFtAttendance = useCallback((updOrVal) => {
     setFtAttRaw(prev => {
@@ -128,7 +180,7 @@ function AppShell() {
   }, [churchId]);
 
   const shared = {
-    groups, members, attendanceHistory, firstTimers, ftAttendance,
+    groups, members, attendanceHistory, firstTimers, ftAttendance, ftGroupId,
     addGroup, editGroup, removeGroup,
     addMember, bulkAddMembers, editMember, removeMember,
     setAttendanceHistory: setAtHistory, saveAttendance,
