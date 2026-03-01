@@ -238,6 +238,7 @@ export default function FirstTimers({
   addMember, groups, showToast
 }) {
   const navigate = useNavigate();
+  const [addModal,   setAddModal]   = useState(false);
   const [viewPerson, setViewPerson] = useState(null);
   const [editPerson, setEditPerson] = useState(null);
   const [visitModal, setVisitModal] = useState(null);
