@@ -13,10 +13,11 @@ const MAIN_NAV = [
   { to: "/absentees",   label: "Absentees",    Icon: () => <span style={{fontSize:16}}>📋</span> },
   { to: "/firsttimers", label: "First Timers", Icon: StarIco },
   { to: "/messaging",   label: "Messaging",    Icon: MsgIco  },
+  { to: "/analytics",   label: "Analytics",    Icon: () => <span style={{fontSize:16}}>📊</span> },
   { to: "/settings",    label: "Settings",     Icon: SetIco  },
 ];
 
-// Bottom nav — 5 most used pages on mobile
+// Bottom nav — 5 most used pages on mobile (no Analytics — accessed via Settings/Dashboard)
 const BOTTOM_NAV = [
   { to: "/",            label: "Home",     Icon: HomeIco },
   { to: "/attendance",  label: "Attend",   Icon: AttIco  },

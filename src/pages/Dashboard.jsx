@@ -177,6 +177,17 @@ export default function Dashboard({ groups, members, attendanceHistory }) {
               <div style={{ fontSize: 12, opacity: 0.65, fontWeight: 400, marginTop: 1 }}>Record & track new visitors</div>
             </div>
           </button>
+          <button
+            className="btn"
+            style={{ width: "100%", padding: "18px 20px", fontSize: 16, borderRadius: 16, justifyContent: "flex-start", gap: 14, background: "var(--surface2)", color: "var(--brand)", border: "1.5px solid var(--border)" }}
+            onClick={() => navigate("/analytics")}
+          >
+            <span style={{ fontSize: 22 }}>📊</span>
+            <div style={{ textAlign: "left" }}>
+              <div style={{ fontWeight: 700, fontSize: 15 }}>Analytics</div>
+              <div style={{ fontSize: 12, opacity: 0.65, fontWeight: 400, marginTop: 1 }}>Attendance trends & reports</div>
+            </div>
+          </button>
         </div>
 
         {/* ── Recent Activity ── */}

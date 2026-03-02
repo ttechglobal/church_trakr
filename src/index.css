@@ -265,3 +265,24 @@ select.fi { font-size: 15px; }
   .pc { padding: 16px 20px; }
   .sgrid { padding: 14px 20px; }
 }
+/* ── Mobile viewport scaling — prevents content from being too large on small screens ── */
+@media (max-width: 400px) {
+  html { font-size: 14px; }
+  .ph h1 { font-size: 20px; }
+  .card { padding: 14px; }
+  .fi { font-size: 15px; } /* Prevents iOS zoom on input focus */
+  .btn { font-size: 13px; padding: 10px 14px; }
+  .att-item { padding: 11px 12px; }
+  .li { padding: 11px 12px; }
+}
+
+/* ── Prevent iOS font-size inflation ── */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+/* ── Settings page — ensure fields don't overflow on mobile ── */
+.fstack { width: 100%; max-width: 100%; }
+.fi { max-width: 100%; }
+
+/* ── Group detail — ensure member rows don't overflow ── */
+.att-item { min-width: 0; overflow: hidden; }
+.att-item > div:first-child { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -610,6 +610,7 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
   const [addModal, setAddModal] = useState(false);
   const [importModal, setImportModal] = useState(false);
   const [removeId, setRemoveId] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const [search, setSearch] = useState("");
   const [viewMember, setViewMember] = useState(null);
   const [editingMember, setEditingMember] = useState(false);
@@ -976,7 +977,6 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
       }} />}
       {removeId && (() => {
         const mem = members.find(m => m.id === removeId);
-        const [deleting, setDeleting] = useState(false);
         const doRemoveFromGroup = async () => {
           setDeleting(true);
           await handleRemove(removeId);

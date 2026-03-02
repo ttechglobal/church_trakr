@@ -24,6 +24,7 @@ import Attendance   from "./pages/Attendance";
 import Absentees    from "./pages/Absentees";
 import FirstTimers  from "./pages/FirstTimers";
 import Settings     from "./pages/Settings";
+import Analytics    from "./pages/Analytics";
 import MessagingHome   from "./pages/messaging/MessagingHome";
 import MessageComposer from "./pages/messaging/MessageComposer";
 import CreditsPage     from "./pages/messaging/CreditsPage";
@@ -83,17 +84,43 @@ function AppShell() {
       ]);
       if (g.error) throw g.error;
       const allGroups = g.data ?? [];
-      setGroupsRaw(allGroups);
-      // Ensure the permanent "First Timers" group exists
-      let ftGroup = allGroups.find(x => x.name === FT_GROUP_NAME);
+      // Ensure exactly one "First Timers" group — deduplicate if multiple exist
+      const ftAll = allGroups.filter(x => x.name === FT_GROUP_NAME);
+      let ftGroup = ftAll[0] || null;
+      // Remove any duplicates (keep the first/oldest one)
+      for (let i = 1; i < ftAll.length; i++) {
+        await supabase.from("groups").delete().eq("id", ftAll[i].id);
+      }
+      // Build clean list without dupes
+      let cleanGroups = ftAll.length > 1
+        ? allGroups.filter(x => x.name !== FT_GROUP_NAME || x.id === ftGroup?.id)
+        : [...allGroups];
+      // Create if doesn't exist yet
       if (!ftGroup) {
         const { data: newFtG } = await supabase.from("groups")
           .insert({ church_id: churchId, name: FT_GROUP_NAME, leader: "" })
           .select().single();
-        if (newFtG) { ftGroup = newFtG; setGroupsRaw(p => [...p, newFtG]); }
+        if (newFtG) { ftGroup = newFtG; cleanGroups = [...cleanGroups, newFtG]; }
       }
+      setGroupsRaw(cleanGroups);
       if (ftGroup) setFtGroupId(ftGroup.id);
-      setMembersRaw(m.data ?? []);
+      const allMembers = m.data ?? [];
+      setMembersRaw(allMembers);
+
+      // Backfill: ensure every first timer has a member record in the FT group
+      if (ftGroup && ft.data?.length) {
+        const ftGroupMembers = allMembers.filter(mb => (mb.groupIds || []).includes(ftGroup.id));
+        const ftMemberNames  = new Set(ftGroupMembers.map(mb => mb.name.trim().toLowerCase()));
+        const missing = (ft.data ?? []).filter(v => !ftMemberNames.has(v.name.trim().toLowerCase()));
+        for (const visitor of missing) {
+          const { data: newM } = await supabase.from("members")
+            .insert({ church_id: churchId, name: visitor.name.trim(), phone: visitor.phone || "",
+              address: visitor.address || "", groupIds: [ftGroup.id], status: "active" })
+            .select().single();
+          if (newM) allMembers.push(newM);
+        }
+        if (missing.length) setMembersRaw([...allMembers]);
+      }
       setAtHistory((a.data ?? []).map(s => ({
         id: s.id, groupId: s.group_id, date: s.date, church_id: s.church_id,
         records: (s.records ?? []).map(r => ({ memberId: r.member_id, name: r.name, present: r.present })),
@@ -143,27 +170,41 @@ function AppShell() {
       setFirstTimersRaw(p => [r.data, ...p]);
       // Also add as a member in the First Timers group for attendance tracking
       if (ftGroupId) {
-        const { data: newM } = await createMember({
-          church_id: churchId, name: ft.name, phone: ft.phone || "",
-          address: ft.address || "", groupIds: [ftGroupId], status: "active",
-          _ft_id: r.data.id,
-        });
-        if (newM) setMembersRaw(p => [...p, newM]);
+        // Use DB check by name + church to avoid duplicates (don't trust local state)
+        const { data: existing } = await supabase.from("members")
+          .select("id, groupIds")
+          .eq("church_id", churchId)
+          .eq("name", ft.name.trim())
+          .maybeSingle();
+        if (existing) {
+          // Member exists — ensure they're in the FT group
+          const grpIds = existing.groupIds || [];
+          if (!grpIds.includes(ftGroupId)) {
+            const updated = await updateMember(existing.id, { groupIds: [...grpIds, ftGroupId] });
+            if (updated.data) setMembersRaw(p => p.map(x => x.id === existing.id ? updated.data : x));
+          }
+        } else {
+          // Create fresh member in FT group
+          const { data: newM } = await createMember({
+            church_id: churchId, name: ft.name.trim(), phone: ft.phone || "",
+            address: ft.address || "", groupIds: [ftGroupId], status: "active",
+          });
+          if (newM) setMembersRaw(p => [...p, newM]);
+        }
       }
     }
     return r;
   }, [churchId, ftGroupId]);
   const editFirstTimer   = useCallback(async (id, u) => { const r = await updateFirstTimer(id, u); if (!r.error && r.data) setFirstTimersRaw(p => p.map(x => x.id === id ? r.data : x)); return r; }, []);
-  const removeFirstTimer = useCallback(async id => {
+  const removeFirstTimer = useCallback(async (id, name) => {
     const r = await deleteFirstTimer(id);
     if (!r.error) {
       setFirstTimersRaw(p => p.filter(x => x.id !== id));
-      // Also remove the matching member from the First Timers group
-      if (ftGroupId) {
+      // Remove the matching member from the First Timers group (match by name)
+      if (ftGroupId && name) {
         setMembersRaw(prev => {
-          const ftMember = prev.find(m => (m.groupIds || []).includes(ftGroupId) && m._ft_id === id);
+          const ftMember = prev.find(m => (m.groupIds || []).includes(ftGroupId) && m.name === name);
           if (ftMember) { deleteMember(ftMember.id); return prev.filter(x => x.id !== ftMember.id); }
-          // fallback: match by name if _ft_id not set
           return prev;
         });
       }
@@ -210,6 +251,7 @@ function AppShell() {
           <Route path="/absentees"         element={<Absentees      {...shared} />} />
           <Route path="/firsttimers"       element={<FirstTimers    {...shared} />} />
           <Route path="/settings"          element={<Settings       {...shared} />} />
+          <Route path="/analytics"         element={<Analytics      {...shared} />} />
           <Route path="/messaging"         element={<MessagingHome   showToast={showToast} />} />
           <Route path="/messaging/send"    element={<MessageComposer {...shared} />} />
           <Route path="/messaging/credits" element={<CreditsPage     showToast={showToast} />} />

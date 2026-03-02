@@ -270,8 +270,9 @@ export default function FirstTimers({
   };
 
   const handleDelete = async (id) => {
+    const person = enriched.find(p => p.id === id);
     setSaving(true);
-    const { error } = await removeFirstTimer(id);
+    const { error } = await removeFirstTimer(id, person?.name);
     setSaving(false);
     if (error) { showToast("Failed to delete ❌"); return; }
     setViewPerson(null);
