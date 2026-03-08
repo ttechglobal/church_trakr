@@ -14,12 +14,10 @@ export default function Dashboard({ groups, members, attendanceHistory }) {
     return "Good evening";
   };
 
-  // Use admin_name from church row, or user metadata, or fall back to "Pastor"
   const adminName = church?.admin_name
     || user?.user_metadata?.full_name
     || "Pastor";
 
-  // Real attendance stat from history
   const totalSessions = attendanceHistory?.length || 0;
   const avgRate = totalSessions > 0
     ? Math.round(attendanceHistory.reduce((acc, s) => {
@@ -30,10 +28,10 @@ export default function Dashboard({ groups, members, attendanceHistory }) {
     : 0;
 
   const stats = [
-    { label: "Groups",     value: groups.length,               icon: "👥", bg: "#d4f1e4", nav: "/groups"     },
-    { label: "Members",    value: members.length,              icon: "👤", bg: "#fde8cc", nav: "/members"    },
-    { label: "Attendance", value: totalSessions > 0 ? avgRate + "%" : "—", icon: "✅", bg: "#e8d4f5", nav: "/attendance" },
-    { label: "Sessions",   value: totalSessions,               icon: "📊", bg: "#cce8ff", nav: "/attendance" },
+    { label: "Groups",     value: groups.length,                             icon: "👥", bg: "#d4f1e4", nav: "/groups"     },
+    { label: "Members",    value: members.length,                            icon: "👤", bg: "#fde8cc", nav: "/members"    },
+    { label: "Attendance", value: totalSessions > 0 ? avgRate + "%" : "—",   icon: "✅", bg: "#e8d4f5", nav: "/attendance" },
+    { label: "Sessions",   value: totalSessions,                             icon: "📊", bg: "#cce8ff", nav: "/attendance" },
   ];
 
   const recentActivity = attendanceHistory
@@ -57,7 +55,6 @@ export default function Dashboard({ groups, members, attendanceHistory }) {
 
   return (
     <div className="page">
-      {/* ── Page header with settings shortcut ── */}
       <div className="ph" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
           <h1>{greeting()}, {adminName} 🙏</h1>
@@ -77,7 +74,7 @@ export default function Dashboard({ groups, members, attendanceHistory }) {
       <div className="sgrid">
         {stats.map(s => (
           <div key={s.label} className="sc" onClick={() => s.nav && navigate(s.nav)}>
-            <div className="sico" style={{ background: s.bg }}><span style={{ fontSize: 22 }}>{s.icon}</span></div>
+            <div className="sico" style={{ background: s.bg }}><span style={{ fontSize: 18 }}>{s.icon}</span></div>
             <div className="sval">{s.value}</div>
             <div className="slbl">{s.label}</div>
           </div>
@@ -85,24 +82,60 @@ export default function Dashboard({ groups, members, attendanceHistory }) {
       </div>
 
       <div className="pc">
+        {/* ── Quick Actions — prominent on mobile ── */}
+        <div className="stitle" style={{ marginBottom: 10 }}>Quick Actions</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 24 }}>
+          <button
+            className="btn bp"
+            style={{ width: "100%", padding: "15px 18px", fontSize: 15, borderRadius: 14, justifyContent: "flex-start", gap: 12 }}
+            onClick={() => navigate("/attendance")}
+          >
+            <span style={{ fontSize: 20 }}>✅</span>
+            <div style={{ textAlign: "left" }}>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>Take Attendance</div>
+              <div style={{ fontSize: 11, opacity: 0.7, fontWeight: 400, marginTop: 1 }}>Mark members present or absent</div>
+            </div>
+          </button>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            {[
+              { icon: "💬", label: "Send SMS", sub: "Message members", nav: "/messaging/send" },
+              { icon: "⭐", label: "First Timers", sub: "Record visitors", nav: "/firsttimers" },
+              { icon: "📊", label: "Analytics", sub: "View trends", nav: "/analytics" },
+              { icon: "📋", label: "Absentees", sub: "Follow up", nav: "/absentees" },
+            ].map(a => (
+              <button key={a.label}
+                className="btn"
+                style={{ padding: "13px 12px", fontSize: 13, borderRadius: 12, justifyContent: "flex-start", gap: 10, background: "var(--surface)", color: "var(--brand)", border: "1.5px solid var(--border)", flexDirection: "column", alignItems: "flex-start", height: "auto" }}
+                onClick={() => navigate(a.nav)}
+              >
+                <span style={{ fontSize: 20 }}>{a.icon}</span>
+                <div style={{ textAlign: "left" }}>
+                  <div style={{ fontWeight: 700, fontSize: 13 }}>{a.label}</div>
+                  <div style={{ fontSize: 11, opacity: 0.6, fontWeight: 400 }}>{a.sub}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* ── Groups section ── */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <div className="stitle" style={{ margin: 0 }}>Your Groups</div>
-          <button className="btn bg" style={{ padding: "6px 14px", fontSize: 13, fontWeight: 700 }}
+          <button className="btn bg" style={{ padding: "5px 12px", fontSize: 12, fontWeight: 700 }}
             onClick={() => navigate("/groups")}>
             See All →
           </button>
         </div>
         {groups.length === 0 ? (
-          <div style={{ background: "var(--surface2)", borderRadius: 14, padding: "18px 16px", marginBottom: 24, textAlign: "center" }}>
-            <div style={{ fontSize: 28, marginBottom: 8 }}>👥</div>
-            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>No groups yet</div>
-            <button className="btn bp" style={{ fontSize: 13, padding: "8px 18px" }} onClick={() => navigate("/groups")}>
+          <div style={{ background: "var(--surface2)", borderRadius: 14, padding: "16px 14px", marginBottom: 20, textAlign: "center" }}>
+            <div style={{ fontSize: 24, marginBottom: 6 }}>👥</div>
+            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>No groups yet</div>
+            <button className="btn bp" style={{ fontSize: 12, padding: "8px 16px" }} onClick={() => navigate("/groups")}>
               + Create First Group
             </button>
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 20 }}>
             {groups.slice(0, 4).map(g => {
               const cnt = members.filter(m => (m.groupIds || []).includes(g.id)).length;
               const sessions = attendanceHistory.filter(s => s.groupId === g.id);
@@ -115,15 +148,15 @@ export default function Dashboard({ groups, members, attendanceHistory }) {
               const bg = colors[g.name.charCodeAt(0) % colors.length];
               return (
                 <div key={g.id} onClick={() => navigate("/groups")}
-                  style={{ background: "var(--surface)", border: "1.5px solid var(--border)", borderRadius: 14, padding: "14px 12px", cursor: "pointer", transition: "all .12s" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 9, background: bg, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 14, flexShrink: 0 }}>{av}</div>
-                    <div style={{ fontWeight: 700, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</div>
+                  style={{ background: "var(--surface)", border: "1.5px solid var(--border)", borderRadius: 12, padding: "12px 10px", cursor: "pointer" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 6 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 8, background: bg, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13, flexShrink: 0 }}>{av}</div>
+                    <div style={{ fontWeight: 700, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</div>
                   </div>
-                  <div style={{ fontSize: 12, color: "var(--muted)" }}>{cnt} member{cnt !== 1 ? "s" : ""}</div>
+                  <div style={{ fontSize: 11, color: "var(--muted)" }}>{cnt} member{cnt !== 1 ? "s" : ""}</div>
                   {rate !== null && (
-                    <div style={{ fontSize: 11, marginTop: 4, color: rate >= 70 ? "var(--success)" : "var(--danger)", fontWeight: 600 }}>
-                      {rate}% last attendance
+                    <div style={{ fontSize: 10, marginTop: 3, color: rate >= 70 ? "var(--success)" : "var(--danger)", fontWeight: 600 }}>
+                      {rate}% last
                     </div>
                   )}
                 </div>
@@ -131,73 +164,24 @@ export default function Dashboard({ groups, members, attendanceHistory }) {
             })}
             {groups.length > 4 && (
               <div onClick={() => navigate("/groups")}
-                style={{ background: "var(--surface2)", border: "1.5px dashed var(--border)", borderRadius: 14, padding: "14px 12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                style={{ background: "var(--surface2)", border: "1.5px dashed var(--border)", borderRadius: 12, padding: "12px 10px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 20, marginBottom: 4 }}>👥</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--brand)" }}>+{groups.length - 4} more</div>
+                  <div style={{ fontSize: 18, marginBottom: 3 }}>👥</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--brand)" }}>+{groups.length - 4} more</div>
                 </div>
               </div>
             )}
           </div>
         )}
 
-        {/* ── Primary Actions ── */}
-        <div className="stitle" style={{ marginBottom: 12 }}>Quick Actions</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 28 }}>
-          <button
-            className="btn bp"
-            style={{ width: "100%", padding: "18px 20px", fontSize: 16, borderRadius: 16, justifyContent: "flex-start", gap: 14 }}
-            onClick={() => navigate("/attendance")}
-          >
-            <span style={{ fontSize: 22 }}>✅</span>
-            <div style={{ textAlign: "left" }}>
-              <div style={{ fontWeight: 700, fontSize: 15 }}>Take Attendance</div>
-              <div style={{ fontSize: 12, opacity: 0.7, fontWeight: 400, marginTop: 1 }}>Mark members present or absent</div>
-            </div>
-          </button>
-          <button
-            className="btn"
-            style={{ width: "100%", padding: "18px 20px", fontSize: 16, borderRadius: 16, justifyContent: "flex-start", gap: 14, background: "var(--surface2)", color: "var(--brand)", border: "1.5px solid var(--border)" }}
-            onClick={() => navigate("/messaging/send")}
-          >
-            <span style={{ fontSize: 22 }}>💬</span>
-            <div style={{ textAlign: "left" }}>
-              <div style={{ fontWeight: 700, fontSize: 15 }}>Send SMS</div>
-              <div style={{ fontSize: 12, opacity: 0.65, fontWeight: 400, marginTop: 1 }}>Message members or absentees</div>
-            </div>
-          </button>
-          <button
-            className="btn"
-            style={{ width: "100%", padding: "18px 20px", fontSize: 16, borderRadius: 16, justifyContent: "flex-start", gap: 14, background: "var(--surface2)", color: "var(--brand)", border: "1.5px solid var(--border)" }}
-            onClick={() => navigate("/firsttimers")}
-          >
-            <span style={{ fontSize: 22 }}>⭐</span>
-            <div style={{ textAlign: "left" }}>
-              <div style={{ fontWeight: 700, fontSize: 15 }}>First Timers</div>
-              <div style={{ fontSize: 12, opacity: 0.65, fontWeight: 400, marginTop: 1 }}>Record & track new visitors</div>
-            </div>
-          </button>
-          <button
-            className="btn"
-            style={{ width: "100%", padding: "18px 20px", fontSize: 16, borderRadius: 16, justifyContent: "flex-start", gap: 14, background: "var(--surface2)", color: "var(--brand)", border: "1.5px solid var(--border)" }}
-            onClick={() => navigate("/analytics")}
-          >
-            <span style={{ fontSize: 22 }}>📊</span>
-            <div style={{ textAlign: "left" }}>
-              <div style={{ fontWeight: 700, fontSize: 15 }}>Analytics</div>
-              <div style={{ fontSize: 12, opacity: 0.65, fontWeight: 400, marginTop: 1 }}>Attendance trends & reports</div>
-            </div>
-          </button>
-        </div>
-
         {/* ── Recent Activity ── */}
-        <div className="stitle" style={{ marginBottom: 10 }}>Recent Activity</div>
+        <div className="stitle" style={{ marginBottom: 8 }}>Recent Activity</div>
         {recentActivity.map((a, i) => (
-          <div key={i} className="csm" style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
-            <span style={{ fontSize: 20, flexShrink: 0 }}>{a.icon}</span>
+          <div key={i} className="csm" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <span style={{ fontSize: 18, flexShrink: 0 }}>{a.icon}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 600, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.text}</div>
-              <div style={{ fontSize: 12, color: "var(--muted)" }}>{a.time}</div>
+              <div style={{ fontWeight: 600, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.text}</div>
+              <div style={{ fontSize: 11, color: "var(--muted)" }}>{a.time}</div>
             </div>
           </div>
         ))}

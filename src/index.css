@@ -248,6 +248,60 @@ select.fi { font-size: 15px; }
   .frow { grid-template-columns: 1fr; }
   .msh { max-width: 100%; }
   .att-bot { left: 0; right: 0; }
+
+  /* Tighter mobile page header */
+  .ph { padding: max(env(safe-area-inset-top, 12px), 12px) 16px 0; }
+  .ph h1 { font-size: 20px; }
+  .ph p { font-size: 12px; margin-top: 2px; }
+
+  /* Tighter page content spacing */
+  .pc { padding: 10px 14px; }
+  .sgrid { padding: 10px 14px; gap: 8px; }
+  .sc { padding: 12px; }
+  .sval { font-size: 22px; }
+  .slbl { font-size: 11px; }
+  .sico { width: 32px; height: 32px; border-radius: 8px; margin-bottom: 8px; }
+
+  /* Tighter cards */
+  .card { padding: 14px; }
+  .csm { padding: 11px 13px; }
+  .smbox { padding: 10px 4px; }
+
+  /* Compact list items */
+  .li { padding: 11px 12px; margin-bottom: 8px; }
+  .li-name { font-size: 14px; }
+  .li-sub { font-size: 11px; }
+  .av { width: 38px; height: 38px; border-radius: 10px; font-size: 13px; }
+
+  /* Compact buttons */
+  .btn { font-size: 13px; padding: 11px 14px; min-height: 44px; }
+  .blg { padding: 14px 20px; font-size: 15px; border-radius: 12px; }
+
+  /* Section titles */
+  .stitle { font-size: 14px; }
+
+  /* Bottom nav bigger tap targets */
+  .bni { min-height: 50px; font-size: 9px; }
+  .bni svg { width: 21px; height: 21px; }
+
+  /* Forms — prevent iOS zoom */
+  .fi { font-size: 16px; padding: 12px 14px; min-height: 48px; }
+  select.fi { font-size: 16px; }
+
+  /* Tabs */
+  .tab { font-size: 11px; padding: 8px 3px; }
+
+  /* Modal handle larger */
+  .mhw { padding: 14px 0 8px; }
+  .mh { width: 44px; height: 5px; }
+  .mtitle { font-size: 17px; }
+
+  /* Settings rows */
+  .strow { min-height: 52px; padding: 13px 14px; }
+  .st-ico { width: 32px; height: 32px; font-size: 16px; }
+
+  /* Toast */
+  .toast { font-size: 13px; padding: 11px 16px; }
 }
 
 /* ── Desktop enhancements ── */
@@ -265,15 +319,15 @@ select.fi { font-size: 15px; }
   .pc { padding: 16px 20px; }
   .sgrid { padding: 14px 20px; }
 }
-/* ── Mobile viewport scaling — prevents content from being too large on small screens ── */
-@media (max-width: 400px) {
-  html { font-size: 14px; }
-  .ph h1 { font-size: 20px; }
-  .card { padding: 14px; }
-  .fi { font-size: 15px; } /* Prevents iOS zoom on input focus */
-  .btn { font-size: 13px; padding: 10px 14px; }
-  .att-item { padding: 11px 12px; }
-  .li { padding: 11px 12px; }
+/* ── Very small screens ── */
+@media (max-width: 360px) {
+  html { font-size: 13px; }
+  .ph h1 { font-size: 18px; }
+  .fi { font-size: 15px; }
+  .btn { font-size: 12px; padding: 10px 12px; }
+  .att-item { padding: 10px 11px; }
+  .li { padding: 10px 11px; }
+  .smbox { padding: 8px 3px; }
 }
 
 /* ── Prevent iOS font-size inflation ── */

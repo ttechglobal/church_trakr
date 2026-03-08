@@ -29,6 +29,7 @@ import MessagingHome   from "./pages/messaging/MessagingHome";
 import MessageComposer from "./pages/messaging/MessageComposer";
 import CreditsPage     from "./pages/messaging/CreditsPage";
 import MessageHistory  from "./pages/messaging/MessageHistory";
+import SuperAdmin      from "./pages/SuperAdmin";
 
 // ── Loading spinner ──────────────────────────────────────────────────────────
 function LoadingScreen() {
@@ -38,6 +39,7 @@ function LoadingScreen() {
       alignItems: "center", justifyContent: "center",
       gap: 16, background: "#f4f6f3",
     }}>
+      <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 26, fontWeight: 700, color: "#1a3a2a", marginBottom: 4 }}>ChurchTrackr</div>
       <div style={{ fontSize: 48 }}>⛪</div>
       <div style={{
         width: 36, height: 36,
@@ -170,26 +172,31 @@ function AppShell() {
       setFirstTimersRaw(p => [r.data, ...p]);
       // Also add as a member in the First Timers group for attendance tracking
       if (ftGroupId) {
-        // Use DB check by name + church to avoid duplicates (don't trust local state)
-        const { data: existing } = await supabase.from("members")
-          .select("id, groupIds")
-          .eq("church_id", churchId)
-          .eq("name", ft.name.trim())
-          .maybeSingle();
-        if (existing) {
-          // Member exists — ensure they're in the FT group
-          const grpIds = existing.groupIds || [];
-          if (!grpIds.includes(ftGroupId)) {
-            const updated = await updateMember(existing.id, { groupIds: [...grpIds, ftGroupId] });
-            if (updated.data) setMembersRaw(p => p.map(x => x.id === existing.id ? updated.data : x));
+        try {
+          // Use DB check by name + church to avoid duplicates
+          const { data: existing } = await supabase.from("members")
+            .select("id, groupIds")
+            .eq("church_id", churchId)
+            .eq("name", ft.name.trim())
+            .maybeSingle();
+          if (existing) {
+            // Member exists — ensure they're in the FT group
+            const grpIds = existing.groupIds || [];
+            if (!grpIds.includes(ftGroupId)) {
+              const updated = await updateMember(existing.id, { groupIds: [...grpIds, ftGroupId] });
+              if (updated.data) setMembersRaw(p => p.map(x => x.id === existing.id ? updated.data : x));
+            }
+          } else {
+            // Create fresh member in FT group
+            const newMemberResult = await createMember({
+              church_id: churchId, name: ft.name.trim(), phone: ft.phone || "",
+              address: ft.address || "", groupIds: [ftGroupId], status: "active",
+            });
+            if (newMemberResult.data) setMembersRaw(p => [...p, newMemberResult.data]);
           }
-        } else {
-          // Create fresh member in FT group
-          const { data: newM } = await createMember({
-            church_id: churchId, name: ft.name.trim(), phone: ft.phone || "",
-            address: ft.address || "", groupIds: [ftGroupId], status: "active",
-          });
-          if (newM) setMembersRaw(p => [...p, newM]);
+        } catch (e) {
+          console.error("[addFirstTimer] sync member:", e);
+          // Don't fail the whole operation if member sync fails
         }
       }
     }
@@ -203,8 +210,14 @@ function AppShell() {
       // Remove the matching member from the First Timers group (match by name)
       if (ftGroupId && name) {
         setMembersRaw(prev => {
-          const ftMember = prev.find(m => (m.groupIds || []).includes(ftGroupId) && m.name === name);
-          if (ftMember) { deleteMember(ftMember.id); return prev.filter(x => x.id !== ftMember.id); }
+          const ftMember = prev.find(m =>
+            (m.groupIds || []).includes(ftGroupId) &&
+            m.name.trim().toLowerCase() === name.trim().toLowerCase()
+          );
+          if (ftMember) {
+            deleteMember(ftMember.id);
+            return prev.filter(x => x.id !== ftMember.id);
+          }
           return prev;
         });
       }
@@ -231,34 +244,42 @@ function AppShell() {
 
   return (
     <>
-      <AppLayout>
-        {dataError && (
-          <div style={{ background: "#fce8e8", borderBottom: "2px solid #f5c8c8", padding: "10px 20px", fontSize: 13, color: "#8a2020", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-            <span>⚠️ {dataError}</span>
-            <button onClick={loadAll} style={{ background: "#8a2020", color: "#fff", border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Retry</button>
-          </div>
-        )}
-        {dataLoading && (
-          <div style={{ height: 3, background: "linear-gradient(90deg,var(--brand),var(--brand-light),var(--brand))", backgroundSize: "200% 100%", animation: "bar 1.2s infinite linear" }}>
-            <style>{`@keyframes bar { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }`}</style>
-          </div>
-        )}
-        <Routes>
-          <Route path="/"                  element={<Dashboard      {...shared} />} />
-          <Route path="/groups/*"          element={<Groups         {...shared} />} />
-          <Route path="/members"           element={<Members        {...shared} />} />
-          <Route path="/attendance"        element={<Attendance     {...shared} />} />
-          <Route path="/absentees"         element={<Absentees      {...shared} />} />
-          <Route path="/firsttimers"       element={<FirstTimers    {...shared} />} />
-          <Route path="/settings"          element={<Settings       {...shared} />} />
-          <Route path="/analytics"         element={<Analytics      {...shared} />} />
-          <Route path="/messaging"         element={<MessagingHome   showToast={showToast} />} />
-          <Route path="/messaging/send"    element={<MessageComposer {...shared} />} />
-          <Route path="/messaging/credits" element={<CreditsPage     showToast={showToast} />} />
-          <Route path="/messaging/history" element={<MessageHistory  showToast={showToast} />} />
-          <Route path="*"                  element={<Navigate to="/" replace />} />
-        </Routes>
-      </AppLayout>
+      <Routes>
+        {/* SuperAdmin is completely outside AppLayout — its own standalone app */}
+        <Route path="/superadmin" element={<SuperAdmin />} />
+
+        {/* All church app routes wrapped in AppLayout */}
+        <Route path="*" element={
+          <AppLayout>
+            {dataError && (
+              <div style={{ background: "#fce8e8", borderBottom: "2px solid #f5c8c8", padding: "10px 20px", fontSize: 13, color: "#8a2020", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                <span>⚠️ {dataError}</span>
+                <button onClick={loadAll} style={{ background: "#8a2020", color: "#fff", border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Retry</button>
+              </div>
+            )}
+            {dataLoading && (
+              <div style={{ height: 3, background: "linear-gradient(90deg,var(--brand),var(--brand-light),var(--brand))", backgroundSize: "200% 100%", animation: "bar 1.2s infinite linear" }}>
+                <style>{`@keyframes bar { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }`}</style>
+              </div>
+            )}
+            <Routes>
+              <Route path="/"                  element={<Dashboard      {...shared} />} />
+              <Route path="/groups/*"          element={<Groups         {...shared} />} />
+              <Route path="/members"           element={<Members        {...shared} />} />
+              <Route path="/attendance"        element={<Attendance     {...shared} />} />
+              <Route path="/absentees"         element={<Absentees      {...shared} />} />
+              <Route path="/firsttimers"       element={<FirstTimers    {...shared} />} />
+              <Route path="/settings"          element={<Settings       {...shared} />} />
+              <Route path="/analytics"         element={<Analytics      {...shared} />} />
+              <Route path="/messaging"         element={<MessagingHome   showToast={showToast} />} />
+              <Route path="/messaging/send"    element={<MessageComposer {...shared} />} />
+              <Route path="/messaging/credits" element={<CreditsPage     showToast={showToast} />} />
+              <Route path="/messaging/history" element={<MessageHistory  showToast={showToast} />} />
+              <Route path="*"                  element={<Navigate to="/" replace />} />
+            </Routes>
+          </AppLayout>
+        } />
+      </Routes>
       {toast && <Toast msg={toast} onClose={() => setToast(null)} />}
     </>
   );
@@ -272,13 +293,14 @@ function Root() {
 
   if (isAuthenticated && church) return <AppShell />;
 
-  // Not logged in
+  // Not logged in — but allow /superadmin path through so superadmin can log in
   return (
     <Routes>
-      <Route path="/login"  element={<LoginPage />} />
-      <Route path="/signup" element={<SignupPage />} />
-      <Route path="/forgot" element={<ForgotPage />} />
-      <Route path="*"       element={<Navigate to="/login" replace />} />
+      <Route path="/login"      element={<LoginPage />} />
+      <Route path="/signup"     element={<SignupPage />} />
+      <Route path="/forgot"     element={<ForgotPage />} />
+      <Route path="/superadmin" element={<SuperAdmin />} />
+      <Route path="*"           element={<Navigate to="/login" replace />} />
     </Routes>
   );
 }

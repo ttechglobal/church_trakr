@@ -4,7 +4,6 @@ import { Modal } from "../components/ui/Modal";
 import { getAv, fmtDate } from "../lib/helpers";
 import { ChevL, ChevR, SmsIco } from "../components/ui/Icons";
 
-// ── SMS Modal ─────────────────────────────────────────────────────────────────
 function SmsModal({ absentees, onClose, showToast }) {
   const [sel, setSel] = useState(absentees.map(a => a.memberId));
   const [txt, setTxt] = useState("Dear {name}, we missed you at service this Sunday. God bless you! 🙏");
@@ -41,7 +40,6 @@ function SmsModal({ absentees, onClose, showToast }) {
   );
 }
 
-// ── Session Summary ───────────────────────────────────────────────────────────
 function SessionSummary({ session, group, onBack, onContinueMarking, showToast }) {
   const [smsModal, setSmsModal] = useState(false);
   const recs       = session.records;
@@ -132,6 +130,25 @@ function SessionSummary({ session, group, onBack, onContinueMarking, showToast }
   );
 }
 
+// ── Retry wrapper ─────────────────────────────────────────────────────────────
+async function withRetry(fn, maxAttempts = 3, delayMs = 800) {
+  let lastError;
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const result = await fn();
+      if (!result.error) return result;
+      lastError = result.error;
+      const msg = lastError?.message || "";
+      if (msg.includes("permission") || msg.includes("policy") || msg.includes("auth")) break;
+      if (i < maxAttempts - 1) await new Promise(r => setTimeout(r, delayMs * (i + 1)));
+    } catch (e) {
+      lastError = { message: e?.message || "Unexpected error" };
+      if (i < maxAttempts - 1) await new Promise(r => setTimeout(r, delayMs * (i + 1)));
+    }
+  }
+  return { data: null, error: lastError };
+}
+
 // ── Main Attendance Page ──────────────────────────────────────────────────────
 export default function Attendance({ groups, members, attendanceHistory, saveAttendance, showToast }) {
   const [step, setStep] = useState("group");
@@ -153,14 +170,12 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
       setEditingSessionId(existing.id);
     } else {
       const gm = members.filter(m => (m.groupIds || []).includes(selGrp.id));
-      // Default ALL to present — user taps to flip absent
       setRecs(gm.map(m => ({ memberId: m.id, name: m.name, present: true })));
       setEditingSessionId(null);
     }
     setStep("mark");
   };
 
-  // Single tap flips present ↔ absent
   const toggleAbsent = (id) =>
     setRecs(rs => rs.map(r => r.memberId === id ? { ...r, present: !r.present } : r));
 
@@ -172,19 +187,22 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
     setSaving(true);
     try {
       const session = {
-        id:       editingSessionId || undefined,
-        groupId:  selGrp.id,
-        date:     selDate,
-        church_id: undefined, // filled in by App.jsx wrapper
-        records:  recs.map(r => ({ ...r })),
+        id:        editingSessionId || undefined,
+        groupId:   selGrp.id,
+        date:      selDate,
+        church_id: undefined,
+        records:   recs.map(r => ({ ...r })),
       };
-      const { data, error } = await saveAttendance(session);
+
+      const { data, error } = await withRetry(() => saveAttendance(session));
+
       if (error) {
         const msg = error?.message || JSON.stringify(error) || "Unknown error";
         setSaveErr(msg);
-        showToast("Save failed: " + msg + " ❌");
+        showToast("Save failed — tap Retry to try again ❌");
         return;
       }
+
       const savedId = data?.id || editingSessionId;
       if (!editingSessionId && savedId) setEditingSessionId(savedId);
       showToast("Attendance saved! ✅");
@@ -192,7 +210,7 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
     } catch (e) {
       const msg = e?.message || "Unexpected error";
       setSaveErr(msg);
-      showToast("Save failed: " + msg + " ❌");
+      showToast("Save failed — tap Retry to try again ❌");
     } finally {
       setSaving(false);
     }
@@ -202,7 +220,6 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
     ? attendanceHistory.find(s => s.id === editingSessionId) || { id: editingSessionId, groupId: selGrp?.id, date: selDate, records: recs }
     : { id: null, groupId: selGrp?.id, date: selDate, records: recs };
 
-  // ── Viewing a past session ────────────────────────────────────────────────
   if (viewingSession) {
     const grp = groups.find(g => g.id === viewingSession.groupId);
     return (
@@ -219,54 +236,47 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
     );
   }
 
-  // ── GROUP SELECTION ───────────────────────────────────────────────────────
+  // ── GROUP SELECTION — groups listed directly, last session shown inline ───
   if (step === "group") {
-    const recent = [...attendanceHistory].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
     return (
       <div className="page">
         <div className="ph"><h1>Attendance</h1><p>Select a group to mark</p></div>
         <div className="pc">
-          {recent.length > 0 && (
-            <div style={{ marginBottom: 20 }}>
-              <div className="stitle" style={{ marginBottom: 10 }}>Recent Sessions</div>
-              {recent.map(s => {
-                const grp = groups.find(g => g.id === s.groupId);
-                const pc  = s.records.filter(r => r.present === true).length;
-                const tot = s.records.length;
-                const rate = tot ? Math.round((pc / tot) * 100) : 0;
-                return (
-                  <div key={s.id} className="li" onClick={() => setViewingSession(s)}>
-                    <div style={{ width: 42, height: 42, borderRadius: 12, background: "var(--surface2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>📋</div>
-                    <div className="li-info">
-                      <div className="li-name">{grp?.name || "Unknown Group"}</div>
-                      <div className="li-sub">{fmtDate(s.date)} · {pc}/{tot} present</div>
-                    </div>
-                    <div style={{ textAlign: "right", flexShrink: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 15, color: rate >= 70 ? "var(--success)" : rate >= 50 ? "var(--accent)" : "var(--danger)" }}>{rate}%</div>
-                      <div style={{ fontSize: 11, color: "var(--muted)" }}>rate</div>
-                    </div>
-                  </div>
-                );
-              })}
-              <div className="stitle" style={{ marginTop: 20, marginBottom: 10 }}>Groups</div>
+          {groups.length === 0 && (
+            <div className="empty">
+              <div className="empty-ico">👥</div>
+              <p>No groups yet. Create one in Groups.</p>
             </div>
           )}
           {groups.map(g => {
             const cnt = members.filter(m => (m.groupIds || []).includes(g.id)).length;
             const av  = getAv(g.name);
-            const sc  = attendanceHistory.filter(h => h.groupId === g.id).length;
+            const lastSess = [...attendanceHistory]
+              .filter(h => h.groupId === g.id)
+              .sort((a, b) => b.date.localeCompare(a.date))[0];
+            const rate = lastSess && lastSess.records.length
+              ? Math.round((lastSess.records.filter(r => r.present).length / lastSess.records.length) * 100)
+              : null;
             return (
               <div key={g.id} className="li" onClick={() => startMarking(g)}>
                 <div className="av" style={{ background: av.bg, color: av.color }}>{av.initials}</div>
                 <div className="li-info">
                   <div className="li-name">{g.name}</div>
-                  <div className="li-sub">{cnt} members · {sc} session{sc !== 1 ? "s" : ""}</div>
+                  <div className="li-sub">
+                    {cnt} members
+                    {lastSess ? ` · Last: ${fmtDate(lastSess.date)}` : " · No sessions yet"}
+                  </div>
                 </div>
+                {rate !== null && (
+                  <div style={{ textAlign: "right", flexShrink: 0, marginRight: 4 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: rate >= 70 ? "var(--success)" : rate >= 50 ? "var(--accent)" : "var(--danger)" }}>{rate}%</div>
+                    <div style={{ fontSize: 10, color: "var(--muted)" }}>last</div>
+                  </div>
+                )}
                 <ChevR />
               </div>
             );
           })}
-          {groups.length === 0 && <div className="empty"><div className="empty-ico">👥</div><p>No groups yet. Create one in Groups.</p></div>}
         </div>
       </div>
     );
@@ -324,7 +334,6 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
   // ── MARK ATTENDANCE ───────────────────────────────────────────────────────
   if (step === "mark") return (
     <div style={{ paddingBottom: 160 }}>
-      {/* ── Sticky header: back + group/date + absent count ── */}
       <div className="att-top">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <button className="btn bg" style={{ padding: "7px 12px", fontSize: 13 }} onClick={() => setStep("date")}>
@@ -336,10 +345,9 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
           </div>
         </div>
 
-        {/* Compact absent count + hint */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10, padding: "8px 12px", background: absentCnt > 0 ? "#fff0f0" : "#f0fdf6", borderRadius: 10, border: `1px solid ${absentCnt > 0 ? "#f5c8c8" : "#c3f0d8"}` }}>
           <span style={{ fontSize: 13, color: absentCnt > 0 ? "var(--danger)" : "var(--success)", fontWeight: 600 }}>
-            {absentCnt === 0 ? "✓ All present — tap ✗ to mark absent" : `✗ ${absentCnt} absent · ${presentCnt} present`}
+            {absentCnt === 0 ? "✓ All present — tap to mark absent" : `✗ ${absentCnt} absent · ${presentCnt} present`}
           </span>
           <span style={{ fontFamily: "'Playfair Display',serif", fontSize: 20, fontWeight: 700, color: absentCnt > 0 ? "var(--danger)" : "var(--success)" }}>
             {absentCnt > 0 ? absentCnt : "✓"}
@@ -347,7 +355,6 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
         </div>
       </div>
 
-      {/* ── Member list ── */}
       <div style={{ padding: "12px 16px" }}>
         {recs.length === 0 && <div className="empty"><div className="empty-ico">👥</div><p>No members in this group.</p></div>}
         {recs.map(r => {
@@ -368,7 +375,6 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
                   {isAbsent ? "Absent" : "Present"}
                 </div>
               </div>
-              {/* Single action button on right — always shows the opposite of current state */}
               <button
                 onClick={() => toggleAbsent(r.memberId)}
                 style={{
@@ -379,29 +385,27 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
                   color: isAbsent ? "#fff" : "var(--muted)",
                   border: `1.5px solid ${isAbsent ? "var(--danger)" : "var(--border)"}`,
                 }}>
-                {isAbsent ? "✗ Absent" : "✗ Absent"}
+                {isAbsent ? "✗ Absent" : "✓ Present"}
               </button>
             </div>
           );
         })}
       </div>
 
-      {/* ── Fixed bottom: error + save ── */}
       <div className="att-bot">
         {saveErr && (
           <div style={{ background: "#fce8e8", borderRadius: 10, padding: "8px 12px", marginBottom: 10, fontSize: 12, color: "var(--danger)" }}>
-            ⚠️ {saveErr}
+            ⚠️ {saveErr} — tap Retry below
           </div>
         )}
         <button className="btn bp" style={{ width: "100%", borderRadius: 12, padding: "14px", fontSize: 16 }}
           onClick={save} disabled={saving}>
-          {saving ? "Saving…" : "Save Attendance"}
+          {saving ? "Saving… please wait" : saveErr ? "🔄 Retry Save" : "Save Attendance"}
         </button>
       </div>
     </div>
   );
 
-  // ── SUMMARY ───────────────────────────────────────────────────────────────
   if (step === "summary") {
     return (
       <SessionSummary session={currentSession} group={selGrp}

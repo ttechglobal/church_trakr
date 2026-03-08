@@ -1,13 +1,32 @@
 // src/pages/FirstTimers.jsx
 // Visitor tracking — record first timers, track repeat visits, convert to members.
 import { useState } from "react";
+
+// ── Retry wrapper for unreliable network ops ──────────────────────────────────
+async function withRetry(fn, maxAttempts = 3, delayMs = 800) {
+  let lastError;
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const result = await fn();
+      if (!result.error) return result;
+      lastError = result.error;
+      const msg = lastError?.message || "";
+      if (msg.includes("permission") || msg.includes("policy") || msg.includes("auth")) break;
+      if (i < maxAttempts - 1) await new Promise(r => setTimeout(r, delayMs * (i + 1)));
+    } catch (e) {
+      lastError = { message: e?.message || "Unexpected error" };
+      if (i < maxAttempts - 1) await new Promise(r => setTimeout(r, delayMs * (i + 1)));
+    }
+  }
+  return { data: null, error: lastError };
+}
 import { useNavigate } from "react-router-dom";
 import { Modal } from "../components/ui/Modal";
 import { PlusIco, ChevL, ChevR, SmsIco, PhoneIco, PinIco, EditIco } from "../components/ui/Icons";
 import { getAv, fmtDate } from "../lib/helpers";
 
 // ── Add / Edit Modal ──────────────────────────────────────────────────────────
-function FirstTimerModal({ existing, onClose, onSave }) {
+function FirstTimerModal({ existing, onClose, onSave, saving = false }) {
   const [f, setF] = useState({
     name:    existing?.name    || "",
     phone:   existing?.phone   || "",
@@ -29,8 +48,10 @@ function FirstTimerModal({ existing, onClose, onSave }) {
         <div className="fg"><label className="fl">Date of first visit</label><input className="fi" name="date" type="date" value={f.date} onChange={h} /></div>
         {err && <p style={{ color: "var(--danger)", fontSize: 13 }}>{err}</p>}
         <div style={{ display: "flex", gap: 10 }}>
-          <button className="btn bg" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
-          <button className="btn bp" style={{ flex: 1 }} onClick={go}>{existing ? "Save" : "Record"}</button>
+          <button className="btn bg" style={{ flex: 1 }} onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="btn bp" style={{ flex: 1 }} onClick={go} disabled={saving}>
+            {saving ? "Saving…" : existing ? "Save" : "Record"}
+          </button>
         </div>
       </div>
     </Modal>
@@ -248,18 +269,18 @@ export default function FirstTimers({
 
   const handleAdd = async (f) => {
     setSaving(true);
-    const { error } = await addFirstTimer(f);
+    const { error } = await withRetry(() => addFirstTimer(f));
     setSaving(false);
-    if (error) { showToast("Failed to record visitor ❌"); return; }
+    if (error) { showToast("Failed to record visitor — please try again ❌"); return; }
     setAddModal(false);
     showToast("First timer recorded! ⭐");
   };
 
   const handleEdit = async (f) => {
     setSaving(true);
-    const { error } = await editFirstTimer(editPerson.id, f);
+    const { error } = await withRetry(() => editFirstTimer(editPerson.id, f));
     setSaving(false);
-    if (error) { showToast("Failed to update ❌"); return; }
+    if (error) { showToast("Failed to update — please try again ❌"); return; }
     setEditPerson(null);
     showToast("Updated! ✅");
   };
@@ -426,7 +447,7 @@ export default function FirstTimers({
         })}
       </div>
 
-      {addModal && <FirstTimerModal onClose={() => setAddModal(false)} onSave={handleAdd} />}
+      {addModal && <FirstTimerModal onClose={() => { if (!saving) setAddModal(false); }} onSave={handleAdd} saving={saving} />}
       {smsAll && (
         <SmsModal people={enriched}
           defaultMsg="Dear {name}, we're so glad you visited us! We'd love to see you again this Sunday. God bless! 🙏"

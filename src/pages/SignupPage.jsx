@@ -79,7 +79,7 @@ export default function SignupPage() {
   return (
     <div className="auth">
       <div className="acard">
-        <div className="alogo">⛪ ChurchTrack</div>
+        <div className="alogo">⛪ ChurchTrackr</div>
         <p className="asub">Register your church — free to start</p>
 
         <div className="fstack">

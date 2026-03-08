@@ -20,6 +20,7 @@ function ChurchProfileModal({ church, onClose, onSave }) {
 
   const go = async () => {
     if (!f.name.trim()) { setErr("Church name is required"); return; }
+    setErr("");
     setSaving(true);
     const { error } = await onSave({
       name:       f.name.trim(),
@@ -28,12 +29,15 @@ function ChurchProfileModal({ church, onClose, onSave }) {
       location:   f.address.trim(),
     });
     setSaving(false);
-    if (error) { setErr(error.message || "Failed to save"); return; }
+    if (error) {
+      setErr(error.message || "Failed to save — please try again");
+      return;
+    }
     onClose();
   };
 
   return (
-    <Modal title="Church Profile" onClose={onClose}>
+    <Modal title="Church Profile" onClose={saving ? undefined : onClose}>
       <div className="fstack">
         <div className="fg">
           <label className="fl">Church Name *</label>
@@ -52,9 +56,18 @@ function ChurchProfileModal({ church, onClose, onSave }) {
           <label className="fl">Address</label>
           <input className="fi" name="address" value={f.address} onChange={h} placeholder="Church location / address" />
         </div>
-        {err && <p style={{ color: "var(--danger)", fontSize: 13 }}>{err}</p>}
+        {err && (
+          <div style={{ background: "#fce8e8", borderRadius: 10, padding: "10px 12px", fontSize: 13, color: "var(--danger)" }}>
+            ⚠️ {err}
+          </div>
+        )}
+        {saving && (
+          <div style={{ background: "#f0fdf6", borderRadius: 10, padding: "10px 12px", fontSize: 13, color: "var(--success)" }}>
+            ⏳ Saving… this may take a few seconds
+          </div>
+        )}
         <div style={{ display: "flex", gap: 10 }}>
-          <button className="btn bg" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
+          <button className="btn bg" style={{ flex: 1 }} onClick={onClose} disabled={saving}>Cancel</button>
           <button className="btn bp" style={{ flex: 1 }} onClick={go} disabled={saving}>
             {saving ? "Saving…" : "Save"}
           </button>
@@ -64,42 +77,122 @@ function ChurchProfileModal({ church, onClose, onSave }) {
   );
 }
 
-// ── SMS Settings Modal ────────────────────────────────────────────────────────
+// ── SMS / Sender ID Modal ─────────────────────────────────────────────────────
 function SmsSettingsModal({ church, onClose, onSave, showToast }) {
-  const [f, setF] = useState({
-    senderId: church?.sms_sender_id || "",
-    apiKey:   church?.sms_api_key   || "",
-  });
-  const [saving, setSaving] = useState(false);
-  const h = e => setF(x => ({ ...x, [e.target.name]: e.target.value }));
+  const approvedId   = church?.sms_sender_id_status === "approved" ? church.sms_sender_id : null;
+  const pendingId    = church?.sms_sender_id_status === "pending"  ? church.sms_sender_id : null;
 
-  const go = async () => {
+  const [newId,    setNewId]    = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [saving,   setSaving]   = useState(false);
+
+  const handleRequest = async () => {
+    const id = newId.trim();
+    if (!id)            { showToast("Enter a sender ID name"); return; }
+    if (id.length > 11) { showToast("Sender ID must be 11 characters or less"); return; }
+
     setSaving(true);
-    const { error } = await onSave({ sms_sender_id: f.senderId, sms_api_key: f.apiKey });
+    // Save request to sender_id_requests table
+    const { error: e1 } = await supabase
+      .from("sender_id_requests")
+      .insert({ church_id: church.id, sender_id: id, status: "pending" });
+    // Mark on church record as pending
+    const { error: e2 } = await onSave({ sms_sender_id: id, sms_sender_id_status: "pending" });
     setSaving(false);
-    if (error) { showToast("Failed to save SMS settings ❌"); return; }
-    showToast("SMS settings saved ✅");
-    onClose();
+
+    if (e1 || e2) {
+      showToast("Failed to submit request ❌");
+      return;
+    }
+    setSubmitted(true);
+    showToast("Sender ID request submitted ✅");
   };
 
   return (
-    <Modal title="SMS Settings" onClose={onClose}>
+    <Modal title="Messaging Settings" onClose={onClose}>
       <div className="fstack">
-        <div className="fg">
-          <label className="fl">Sender ID</label>
-          <input className="fi" name="senderId" value={f.senderId} onChange={h} placeholder="Your SMS sender name" />
-          <p className="fh">The name recipients see when they receive your SMS</p>
+
+        {/* Current active sender ID */}
+        <div style={{ background: "var(--surface2)", borderRadius: 12, padding: "14px 16px" }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 8 }}>
+            Current Sender ID
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 20, fontWeight: 700, color: "var(--brand)" }}>
+              {approvedId || "ChurchTrackr"}
+            </div>
+            {approvedId
+              ? <span style={{ background: "#d4f1e4", color: "#1a6640", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 20 }}>Active</span>
+              : <span style={{ background: "var(--surface)", color: "var(--muted)", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 20 }}>Default</span>
+            }
+          </div>
+          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+            This is what recipients see when they get your SMS
+          </div>
         </div>
-        <div className="fg">
-          <label className="fl">API Key</label>
-          <input className="fi" name="apiKey" type="password" value={f.apiKey} onChange={h} placeholder="Your SMS provider API key" />
-        </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <button className="btn bg" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
-          <button className="btn bp" style={{ flex: 1 }} onClick={go} disabled={saving}>
-            {saving ? "Saving…" : "Save"}
-          </button>
-        </div>
+
+        {/* Pending request status */}
+        {pendingId && !submitted && (
+          <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 12, padding: "12px 14px" }}>
+            <div style={{ fontWeight: 700, fontSize: 13, color: "#92400e", marginBottom: 4 }}>
+              ⏳ Pending: "{pendingId}"
+            </div>
+            <div style={{ fontSize: 12, color: "#92400e" }}>
+              Your request is being reviewed. Allow 4–6 business days for approval.
+            </div>
+          </div>
+        )}
+
+        {/* Success state */}
+        {submitted && (
+          <div style={{ background: "#f0fdf6", border: "1px solid #c8ebd8", borderRadius: 12, padding: "14px 16px" }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "var(--success)", marginBottom: 6 }}>✅ Request Submitted!</div>
+            <div style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.6 }}>
+              Your request for <strong>"{newId.trim()}"</strong> has been submitted.
+              Allow <strong>4–6 business days</strong> for approval. You'll be able to use it once approved.
+              Until then, your messages will send as <strong>ChurchTrackr</strong>.
+            </div>
+          </div>
+        )}
+
+        {/* Request new sender ID form */}
+        {!submitted && (
+          <>
+            <div style={{ height: 1, background: "var(--border)" }} />
+            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>
+              {approvedId ? "Request a New Sender ID" : "Request a Custom Sender ID"}
+            </div>
+            <p style={{ fontSize: 13, color: "var(--muted)", marginTop: -4, lineHeight: 1.6 }}>
+              Use your church name or a short brand name. After submission, allow <strong>4–6 business days</strong> for approval.
+            </p>
+            <div className="fg">
+              <label className="fl">Sender ID (max 11 characters)</label>
+              <input
+                className="fi"
+                maxLength={11}
+                placeholder="e.g. Grace Chapel"
+                value={newId}
+                onChange={e => setNewId(e.target.value)}
+              />
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+                <p className="fh">Max 11 characters. This is what recipients will see.</p>
+                <span style={{ fontSize: 12, color: newId.length > 9 ? "var(--brand)" : "var(--muted)", fontWeight: 600 }}>
+                  {newId.length}/11
+                </span>
+              </div>
+            </div>
+            <button
+              className="btn bp"
+              onClick={handleRequest}
+              disabled={saving || !newId.trim()}
+              style={{ opacity: !newId.trim() ? .5 : 1 }}
+            >
+              {saving ? "Submitting…" : "📨 Request Sender ID"}
+            </button>
+          </>
+        )}
+
+        <button className="btn bg" onClick={onClose}>Close</button>
       </div>
     </Modal>
   );
@@ -114,7 +207,7 @@ function ChangePasswordModal({ onClose, showToast }) {
 
   const go = async () => {
     setErr("");
-    if (f.next.length < 6)   { setErr("New password must be at least 6 characters"); return; }
+    if (f.next.length < 6)    { setErr("New password must be at least 6 characters"); return; }
     if (f.next !== f.confirm) { setErr("Passwords do not match"); return; }
     setSaving(true);
     const { error } = await supabase.auth.updateUser({ password: f.next });
@@ -154,10 +247,16 @@ export default function Settings({ showToast }) {
   const navigate = useNavigate();
   const [modal, setModal] = useState(null); // "profile" | "sms" | "password"
 
-  const handleLogout  = async () => { await signOut(); navigate("/login"); };
+  const handleLogout = async () => { await signOut(); navigate("/login"); };
+
   const handleSaveChurch = async (updates) => {
     const { error } = await updateChurch(updates);
-    if (!error) showToast("Saved ✅");
+    if (!error) {
+      showToast("Saved ✅");
+    } else {
+      const msg = error?.message || "Failed to save";
+      showToast(`Save failed: ${msg} ❌`);
+    }
     return { error };
   };
 
@@ -234,8 +333,14 @@ export default function Settings({ showToast }) {
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div className="st-ico" style={{ background: "#cce8ff" }}>💬</div>
               <div>
-                <div style={{ fontWeight: 600, fontSize: 14 }}>SMS Settings</div>
-                <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 1 }}>Sender ID and API key</div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>SMS & Sender ID</div>
+                <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 1 }}>
+                  {church?.sms_sender_id_status === "approved"
+                    ? `Sending as: ${church.sms_sender_id}`
+                    : church?.sms_sender_id_status === "pending"
+                    ? `Pending approval: ${church.sms_sender_id}`
+                    : "Sending as: ChurchTrackr (default)"}
+                </div>
               </div>
             </div>
             <ChevR />

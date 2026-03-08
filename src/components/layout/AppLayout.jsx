@@ -17,11 +17,11 @@ const MAIN_NAV = [
   { to: "/settings",    label: "Settings",     Icon: SetIco  },
 ];
 
-// Bottom nav — 5 most used pages on mobile (no Analytics — accessed via Settings/Dashboard)
+// Bottom nav — 5 most used pages on mobile
 const BOTTOM_NAV = [
   { to: "/",            label: "Home",     Icon: HomeIco },
+  { to: "/groups",      label: "Groups",   Icon: GrpIco  },
   { to: "/attendance",  label: "Attend",   Icon: AttIco  },
-  { to: "/absentees",   label: "Absent",   Icon: () => <span style={{fontSize:16}}>📋</span> },
   { to: "/firsttimers", label: "Visitors", Icon: StarIco },
   { to: "/messaging",   label: "Message",  Icon: MsgIco  },
 ];
@@ -40,7 +40,7 @@ export function AppLayout({ children }) {
       {/* ── Desktop Sidebar ── */}
       <nav className="sb">
         <div className="sb-logo">
-          <h2>⛪ ChurchTrack</h2>
+          <h2>⛪ ChurchTrackr</h2>
           <p>{church?.name ?? "Loading…"}</p>
         </div>
         <div className="sb-nav">

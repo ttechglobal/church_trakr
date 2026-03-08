@@ -39,7 +39,7 @@ export default function LoginPage() {
   return (
     <div className="auth">
       <div className="acard">
-        <div className="alogo">⛪ ChurchTrack</div>
+        <div className="alogo">⛪ ChurchTrackr</div>
         <p className="asub">Sign in to your church dashboard</p>
 
         <div className="fstack">
