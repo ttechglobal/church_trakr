@@ -1094,11 +1094,16 @@ export default function Groups({ groups, addGroup, editGroup, removeGroup, membe
   // Church-wide birthday check for today
   const today = new Date();
   const todayMD = `${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-  const totalBdaysToday = members.filter(m => {
+  // Church-wide birthdays with group name context
+  const bdaysTodayAll = members.filter(m => {
     if (!m.birthday) return false;
     const p = m.birthday.split("-");
     return p.length >= 3 && `${p[1]}-${p[2]}` === todayMD;
-  }).length;
+  }).map(m => ({
+    ...m,
+    groupName: groups.find(g => (m.groupIds || []).includes(g.id))?.name || "No group",
+  }));
+  const totalBdaysToday = bdaysTodayAll.length;
 
   return (
     <div className="page">
@@ -1114,12 +1119,23 @@ export default function Groups({ groups, addGroup, editGroup, removeGroup, membe
 
       <div className="pc">
         {totalBdaysToday > 0 && (
-          <div style={{ background: "linear-gradient(135deg,#fff8e6,#fff0cc)", border: "1.5px solid var(--accent)", borderRadius: 14, padding: "14px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: 28 }}>🎂</span>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 14, color: "#8a5a00" }}>{totalBdaysToday} birthday{totalBdaysToday !== 1 ? "s" : ""} today!</div>
-              <div style={{ fontSize: 13, color: "#8a5a00" }}>Open a group to send birthday greetings</div>
+          <div style={{ background: "linear-gradient(135deg,#fff8e6,#fff0cc)", border: "1.5px solid var(--accent)", borderRadius: 16, padding: "16px", marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: bdaysTodayAll.length > 0 ? 12 : 0 }}>
+              <span style={{ fontSize: 28 }}>🎂</span>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: "#8a5a00" }}>{totalBdaysToday} birthday{totalBdaysToday !== 1 ? "s" : ""} today!</div>
+                <div style={{ fontSize: 12, color: "#8a5a00" }}>Open a group to send greetings</div>
+              </div>
             </div>
+            {bdaysTodayAll.map(m => (
+              <div key={m.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderTop: "1px solid rgba(240,165,0,.2)" }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>{m.name}</div>
+                  <div style={{ fontSize: 12, color: "#8a5a00" }}>{m.groupName}</div>
+                </div>
+                <span style={{ background: "#f5a623", color: "#fff", fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20 }}>🎉 Today</span>
+              </div>
+            ))}
           </div>
         )}
 

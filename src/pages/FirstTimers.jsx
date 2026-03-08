@@ -21,8 +21,12 @@ async function withRetry(fn, maxAttempts = 3, delayMs = 800) {
   return { data: null, error: lastError };
 }
 import { useNavigate } from "react-router-dom";
+import { sendSms } from "../services/sms";
+import { useAuth } from "../hooks/useAuth";
+
+const CREDITS_PER_SMS = 10;
 import { Modal } from "../components/ui/Modal";
-import { PlusIco, ChevL, ChevR, SmsIco, PhoneIco, PinIco, EditIco } from "../components/ui/Icons";
+import { PlusIco, ChevL, ChevR, PhoneIco, PinIco, EditIco } from "../components/ui/Icons";
 import { getAv, fmtDate } from "../lib/helpers";
 
 // ── Add / Edit Modal ──────────────────────────────────────────────────────────
@@ -58,37 +62,78 @@ function FirstTimerModal({ existing, onClose, onSave, saving = false }) {
   );
 }
 
-// ── SMS Modal ─────────────────────────────────────────────────────────────────
-function SmsModal({ people, defaultMsg, onClose, showToast }) {
-  const [sel, setSel] = useState(people.map(p => p.id));
-  const [txt, setTxt] = useState(defaultMsg);
-  const all = sel.length === people.length;
+// ── SMS Modal — real send via edge function ───────────────────────────────────
+function SmsModal({ people, defaultMsg, onClose, showToast, church }) {
+  const [sel,     setSel]     = useState(people.filter(p => p.phone).map(p => p.id));
+  const [txt,     setTxt]     = useState(defaultMsg);
+  const [sending, setSending] = useState(false);
+  const all = sel.length === people.filter(p => p.phone).length;
+
+  const recipients = people.filter(p => sel.includes(p.id) && p.phone).map(p => ({ name: p.name, phone: p.phone }));
+  const credits    = church?.sms_credits ?? 0;
+  const creditCost = recipients.length * CREDITS_PER_SMS;
+  const hasEnough  = credits >= creditCost;
+
+  const handleSend = async () => {
+    if (!txt.trim())             { showToast("Please write a message"); return; }
+    if (recipients.length === 0) { showToast("No recipients have phone numbers"); return; }
+    if (!hasEnough)              { showToast(`Need ${creditCost} credits — you have ${credits}`); return; }
+
+    setSending(true);
+    try {
+      const result = await sendSms({ recipients, message: txt, type: "firsttimers" });
+      if (result.success === false && result.error) throw new Error(result.error);
+      const sent = result.sent ?? recipients.length;
+      showToast(`✅ Sent to ${sent} person${sent !== 1 ? "s" : ""}!`);
+      onClose();
+    } catch (e) {
+      showToast("Send failed — please try again ❌");
+      console.error("[FirstTimers SmsModal]", e);
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <Modal title="Send Message" onClose={onClose}>
       <div style={{ marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <p style={{ fontWeight: 600, fontSize: 14 }}>Recipients ({sel.length}/{people.length})</p>
-          <button className="btn bg" style={{ padding: "5px 12px", fontSize: 12 }} onClick={() => setSel(all ? [] : people.map(p => p.id))}>
+          <p style={{ fontWeight: 600, fontSize: 14 }}>Recipients ({sel.length})</p>
+          <button className="btn bg" style={{ padding: "5px 12px", fontSize: 12 }}
+            onClick={() => setSel(all ? [] : people.filter(p => p.phone).map(p => p.id))}>
             {all ? "Deselect All" : "Select All"}
           </button>
         </div>
         {people.map(p => (
-          <label key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 0", borderBottom: "1px solid var(--border)", cursor: "pointer" }}>
-            <input type="checkbox" checked={sel.includes(p.id)}
-              onChange={() => setSel(s => s.includes(p.id) ? s.filter(x => x !== p.id) : [...s, p.id])}
+          <label key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid var(--border)", cursor: p.phone ? "pointer" : "default", opacity: p.phone ? 1 : 0.45 }}>
+            <input type="checkbox" checked={sel.includes(p.id)} disabled={!p.phone}
+              onChange={() => p.phone && setSel(s => s.includes(p.id) ? s.filter(x => x !== p.id) : [...s, p.id])}
               style={{ width: 18, height: 18, accentColor: "var(--brand)", flexShrink: 0 }} />
-            <div><div style={{ fontWeight: 600, fontSize: 14 }}>{p.name}</div><div style={{ fontSize: 12, color: "var(--muted)" }}>{p.phone}</div></div>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>{p.name}</div>
+              <div style={{ fontSize: 12, color: p.phone ? "var(--muted)" : "var(--danger)" }}>{p.phone || "No phone number"}</div>
+            </div>
           </label>
         ))}
       </div>
-      <div className="fg" style={{ marginBottom: 16 }}>
+      <div className="fg" style={{ marginBottom: 12 }}>
         <label className="fl">Message</label>
         <textarea className="fi" rows={4} value={txt} onChange={e => setTxt(e.target.value)} style={{ resize: "vertical" }} />
         <p className="fh">Use {"{name}"} to personalise</p>
       </div>
-      <button className="btn bp blg" disabled={sel.length === 0}
-        onClick={() => { showToast(`SMS sent to ${sel.length} person${sel.length !== 1 ? "s" : ""}! ✉️`); onClose(); }}>
-        <SmsIco s={18} /> Send to {sel.length}
+      {recipients.length > 0 && (
+        <div style={{ background: hasEnough ? "var(--surface2)" : "#fce8e8", borderRadius: 10, padding: "10px 12px", marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center", border: `1px solid ${hasEnough ? "var(--border)" : "var(--danger)"}` }}>
+          <span style={{ fontSize: 13, color: hasEnough ? "var(--muted)" : "var(--danger)" }}>
+            {recipients.length} × {CREDITS_PER_SMS} credits
+          </span>
+          <span style={{ fontWeight: 700, color: hasEnough ? "var(--brand)" : "var(--danger)" }}>{creditCost} credits</span>
+        </div>
+      )}
+      <button className="btn bp blg"
+        disabled={sel.length === 0 || sending || !hasEnough || recipients.length === 0}
+        style={{ opacity: (sel.length === 0 || !hasEnough || recipients.length === 0) ? .5 : 1 }}
+        onClick={handleSend}>
+        {sending ? `Sending to ${recipients.length}…` : `📤 Send to ${recipients.length}`}
       </button>
     </Modal>
   );
@@ -125,7 +170,7 @@ function ConvertModal({ person, groups, onClose, onConvert }) {
 }
 
 // ── First Timer Profile ───────────────────────────────────────────────────────
-function FirstTimerProfile({ person, groups, onBack, onEdit, onDelete, onRecordVisit, onConvert, showToast }) {
+function FirstTimerProfile({ person, groups, onBack, onEdit, onDelete, onRecordVisit, onConvert, showToast, church }) {
   const av      = getAv(person.name);
   const [smsOpen,     setSmsOpen]     = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
@@ -157,7 +202,7 @@ function FirstTimerProfile({ person, groups, onBack, onEdit, onDelete, onRecordV
       <div className="pc">
         {/* Action row */}
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          <button className="btn bg" style={{ flex: 1 }} onClick={() => setSmsOpen(true)}><SmsIco s={15} /> SMS</button>
+          <button className="btn bg" style={{ flex: 1 }} onClick={() => setSmsOpen(true)}>📤 SMS</button>
           <button className="btn bg" style={{ flex: 1 }} onClick={onEdit}><EditIco s={14} /> Edit</button>
           <button className="btn bg" style={{ flex: 1 }} onClick={onRecordVisit}>+ Visit</button>
         </div>
@@ -209,7 +254,7 @@ function FirstTimerProfile({ person, groups, onBack, onEdit, onDelete, onRecordV
       {smsOpen && (
         <SmsModal people={[person]}
           defaultMsg="Dear {name}, it was wonderful having you at our service! We'd love to see you again this Sunday. God bless you! 🙏"
-          onClose={() => setSmsOpen(false)} showToast={showToast} />
+          onClose={() => setSmsOpen(false)} showToast={showToast} church={church} />
       )}
       {convertOpen && (
         <ConvertModal person={person} groups={groups}
@@ -258,6 +303,7 @@ export default function FirstTimers({
   firstTimers, addFirstTimer, editFirstTimer, removeFirstTimer,
   addMember, groups, showToast
 }) {
+  const { church } = useAuth();
   const navigate = useNavigate();
   const [addModal,   setAddModal]   = useState(false);
   const [viewPerson, setViewPerson] = useState(null);
@@ -341,6 +387,7 @@ export default function FirstTimers({
           onRecordVisit={() => setVisitModal(livePerson)}
           onConvert={(groupId) => handleConvert(livePerson, groupId)}
           showToast={showToast}
+          church={church}
         />
         {editPerson && <FirstTimerModal existing={editPerson} onClose={() => setEditPerson(null)} onSave={handleEdit} />}
         {visitModal && (
@@ -375,7 +422,7 @@ export default function FirstTimers({
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             {enriched.length > 0 && (
-              <button className="bico" onClick={() => setSmsAll(true)} title="Send SMS to all"><SmsIco s={18} /></button>
+              <button className="bico" onClick={() => setSmsAll(true)} title="Send SMS to all">📤</button>
             )}
             <button className="btn bp" onClick={() => setAddModal(true)}><PlusIco s={16} /> Add</button>
           </div>
@@ -451,7 +498,7 @@ export default function FirstTimers({
       {smsAll && (
         <SmsModal people={enriched}
           defaultMsg="Dear {name}, we're so glad you visited us! We'd love to see you again this Sunday. God bless! 🙏"
-          onClose={() => setSmsAll(false)} showToast={showToast} />
+          onClose={() => setSmsAll(false)} showToast={showToast} church={church} />
       )}
     </div>
   );

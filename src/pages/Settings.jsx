@@ -1,6 +1,6 @@
 // src/pages/Settings.jsx
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { supabase } from "../services/supabaseClient";
 import { ChevR, EditIco, LogoutIco } from "../components/ui/Icons";
@@ -119,7 +119,7 @@ function SmsSettingsModal({ church, onClose, onSave, showToast }) {
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 20, fontWeight: 700, color: "var(--brand)" }}>
-              {approvedId || "ChurchTrackr"}
+              {approvedId || "ChurchTrakr"}
             </div>
             {approvedId
               ? <span style={{ background: "#d4f1e4", color: "#1a6640", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 20 }}>Active</span>
@@ -150,7 +150,7 @@ function SmsSettingsModal({ church, onClose, onSave, showToast }) {
             <div style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.6 }}>
               Your request for <strong>"{newId.trim()}"</strong> has been submitted.
               Allow <strong>4–6 business days</strong> for approval. You'll be able to use it once approved.
-              Until then, your messages will send as <strong>ChurchTrackr</strong>.
+              Until then, your messages will send as <strong>ChurchTrakr</strong>.
             </div>
           </div>
         )}
@@ -339,7 +339,7 @@ export default function Settings({ showToast }) {
                     ? `Sending as: ${church.sms_sender_id}`
                     : church?.sms_sender_id_status === "pending"
                     ? `Pending approval: ${church.sms_sender_id}`
-                    : "Sending as: ChurchTrackr (default)"}
+                    : "Sending as: ChurchTrakr (default)"}
                 </div>
               </div>
             </div>
@@ -379,6 +379,8 @@ export default function Settings({ showToast }) {
           </div>
         </div>
       </div>
+
+      {/* ── Modals ── */}
 
       {/* ── Modals ── */}
       {modal === "profile" && (

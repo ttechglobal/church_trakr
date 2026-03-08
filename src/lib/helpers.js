@@ -20,14 +20,14 @@ export const fmtDate = d =>
 
 export const fmtBday = d => {
   if (!d) return "";
-  // Handle MM-DD (no year) format
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  // YYYY-MM-DD (most common — parse directly, never use Date constructor to avoid UTC offset)
+  const full = d.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (full) return `${months[parseInt(full[2]) - 1] || "?"} ${parseInt(full[3])}`;
+  // MM-DD (no year)
   const mmdd = d.match(/^(\d{1,2})[\/\-](\d{1,2})$/);
-  if (mmdd) {
-    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    const m = parseInt(mmdd[1]) - 1;
-    return `${months[m] || "?"} ${parseInt(mmdd[2])}`;
-  }
-  return new Date(d + "T00:00:00").toLocaleDateString("en-NG", { month: "long", day: "numeric" });
+  if (mmdd) return `${months[parseInt(mmdd[1]) - 1] || "?"} ${parseInt(mmdd[2])}`;
+  return d;
 };
 
 /** Normalise a birthday value from import: accepts YYYY-MM-DD, MM-DD, MM/DD, D/M/YYYY, D-M-YYYY etc.

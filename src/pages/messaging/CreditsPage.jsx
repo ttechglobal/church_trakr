@@ -4,9 +4,17 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { ChevL } from "../../components/ui/Icons";
 
-const CREDITS_PER_NAIRA = 1;      // 1 credit = ₦1
-const CREDITS_PER_MSG   = 5;      // 5 credits per SMS
-const NAIRA_PER_MSG     = CREDITS_PER_MSG / CREDITS_PER_NAIRA;  // ₦5 per SMS (matches Termii ₦5/msg)
+// ── Pricing ──────────────────────────────────────────────────────────────────
+const CREDITS_PER_MSG  = 10;           // 10 credits per SMS
+const NAIRA_PER_CREDIT = 1.2;         // ₦1.20 per credit
+
+const PACKAGES = [
+  { credits: 100,  msgs: 10,   naira: 120,  label: "Starter",  popular: false },
+  { credits: 500,  msgs: 50,   naira: 600,  label: "Basic",    popular: false },
+  { credits: 1000, msgs: 100,  naira: 1200, label: "Standard", popular: true  },
+  { credits: 2000, msgs: 200,  naira: 2400, label: "Growth",   popular: false },
+  { credits: 5000, msgs: 500,  naira: 6000, label: "Church",   popular: false },
+];
 
 const BANK = {
   name:    "OPay",
@@ -16,29 +24,29 @@ const BANK = {
 };
 const WHATSAPP = "08050340350";
 
-const PRESETS = [100, 250, 500, 1000, 2000, 5000];
-
 export default function CreditsPage({ showToast }) {
   const navigate = useNavigate();
   const { church } = useAuth();
-  const credits = church?.sms_credits ?? 0;
+  const currentCredits = church?.sms_credits ?? 0;
 
-  // Calculator mode: "credits" | "messages"
-  const [mode,     setMode]    = useState("credits");
-  const [amount,   setAmount]  = useState("");
-  const [step,     setStep]    = useState("calc"); // "calc" | "pay"
+  const [msgs,      setMsgs]   = useState("");   // user enters number of messages
+  const [selected,  setSelected] = useState(null); // selected package
+  const [step,      setStep]   = useState("calc");  // "calc" | "pay"
 
-  const creditsVal  = mode === "credits"  ? Number(amount) || 0 : (Number(amount) || 0) * CREDITS_PER_MSG;
-  const messagesVal = mode === "messages" ? Number(amount) || 0 : Math.floor((Number(amount) || 0) / CREDITS_PER_MSG);
-  const nairaVal    = creditsVal * CREDITS_PER_NAIRA;
+  // Derived from messages input
+  const msgCount    = Number(msgs) || 0;
+  const creditCount = msgCount * CREDITS_PER_MSG;
+  const nairaTotal  = Math.ceil(creditCount * NAIRA_PER_CREDIT);
 
-  const handlePreset = (n) => {
-    setMode("credits");
-    setAmount(String(n));
-  };
+  // What they're actually buying (package or custom)
+  const buying = selected
+    ? selected
+    : msgCount > 0
+    ? { credits: creditCount, msgs: msgCount, naira: nairaTotal }
+    : null;
 
   const handleProceed = () => {
-    if (creditsVal < 10) { showToast("Minimum purchase is 10 credits"); return; }
+    if (!buying || buying.credits < 10) { showToast("Enter how many messages you want to send"); return; }
     setStep("pay");
   };
 
@@ -46,77 +54,78 @@ export default function CreditsPage({ showToast }) {
     navigator.clipboard?.writeText(text).then(() => showToast("Copied! ✅")).catch(() => showToast(text));
   };
 
-  // ── Payment details screen ─────────────────────────────────────────────────
-  if (step === "pay") return (
+  // ── Payment screen ────────────────────────────────────────────────────────
+  if (step === "pay" && buying) return (
     <div className="page">
       <div className="ph">
         <button className="btn bg" style={{ marginBottom: 14 }} onClick={() => setStep("calc")}><ChevL /> Back</button>
         <h1>Complete Payment</h1>
-        <p>Transfer ₦{nairaVal.toLocaleString()} to receive {creditsVal} credits</p>
+        <p>Transfer to receive your credits instantly</p>
       </div>
       <div className="pc">
 
         {/* Order summary */}
-        <div className="card" style={{ marginBottom: 20, background: "linear-gradient(135deg,var(--brand),var(--brand-mid))", color: "#fff" }}>
-          <div style={{ fontSize: 12, fontWeight: 600, opacity: .7, textTransform: "uppercase", letterSpacing: ".05em" }}>Your Order</div>
-          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 36, fontWeight: 700, marginTop: 4 }}>
-            {creditsVal.toLocaleString()} credits
+        <div style={{
+          background: "linear-gradient(135deg, var(--brand) 0%, var(--brand-mid) 100%)",
+          borderRadius: 20, padding: "22px 20px", marginBottom: 24, color: "#fff",
+          position: "relative", overflow: "hidden",
+        }}>
+          <div style={{ position: "absolute", right: -20, top: -20, width: 100, height: 100, borderRadius: "50%", background: "rgba(255,255,255,.08)" }} />
+          <div style={{ fontSize: 11, fontWeight: 700, opacity: .7, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 6 }}>Your Order</div>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 8, marginBottom: 4 }}>
+            <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 44, fontWeight: 700, lineHeight: 1 }}>{buying.msgs.toLocaleString()}</div>
+            <div style={{ opacity: .8, paddingBottom: 6 }}>messages</div>
           </div>
-          <div style={{ fontSize: 14, opacity: .8, marginTop: 4 }}>≈ {messagesVal.toLocaleString()} SMS messages</div>
-          <div style={{ marginTop: 16, padding: "12px", background: "rgba(255,255,255,.15)", borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 14 }}>Amount to pay</span>
-            <span style={{ fontFamily: "'Playfair Display',serif", fontSize: 24, fontWeight: 700 }}>₦{nairaVal.toLocaleString()}</span>
+          <div style={{ fontSize: 14, opacity: .75, marginBottom: 20 }}>{buying.credits.toLocaleString()} credits</div>
+
+          <div style={{ background: "rgba(255,255,255,.15)", borderRadius: 12, padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 13 }}>Amount to transfer</span>
+            <span style={{ fontFamily: "'Playfair Display',serif", fontSize: 28, fontWeight: 700 }}>
+              ₦{buying.naira.toLocaleString()}
+            </span>
           </div>
         </div>
 
         {/* Bank details */}
         <div className="stitle">Bank Transfer Details</div>
         <div className="stsec" style={{ marginBottom: 20 }}>
-          {[
-            ["Bank",           BANK.name],
-            ["Account Number", BANK.account],
-            ["Account Name",   BANK.holder],
-            ["Description",    BANK.ref],
-          ].map(([label, value]) => (
+          {[["Bank", BANK.name], ["Account Number", BANK.account], ["Account Name", BANK.holder], ["Description / Narration", BANK.ref]].map(([label, value]) => (
             <div key={label} className="strow" onClick={() => handleCopy(value)} style={{ cursor: "pointer" }}>
               <div>
                 <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, marginBottom: 2 }}>{label}</div>
                 <div style={{ fontWeight: 700, fontSize: 15 }}>{value}</div>
               </div>
-              <div style={{ fontSize: 12, color: "var(--brand)", fontWeight: 600 }}>Copy</div>
+              <div style={{ fontSize: 12, color: "var(--brand)", fontWeight: 700 }}>Copy</div>
             </div>
           ))}
         </div>
 
-        {/* WhatsApp proof */}
-        <div className="card" style={{ marginBottom: 20, background: "#f0fdf6", border: "1.5px solid #c8ebd8" }}>
-          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8 }}>📲 After paying</div>
-          <div style={{ fontSize: 14, color: "var(--text)", lineHeight: 1.5 }}>
-            Send your <strong>payment proof (screenshot)</strong> to WhatsApp:
+        {/* WhatsApp */}
+        <div style={{ background: "#f0fdf6", border: "1.5px solid #a7f3d0", borderRadius: 16, padding: "18px 16px", marginBottom: 20 }}>
+          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 10 }}>📲 After paying</div>
+          <div style={{ fontSize: 14, lineHeight: 1.6, marginBottom: 12 }}>
+            Send your <strong>payment screenshot</strong> to WhatsApp so we can credit your account:
           </div>
-          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 24, fontWeight: 700, color: "var(--brand)", margin: "12px 0" }}>
-            {WHATSAPP}
-          </div>
-          <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 14 }}>
-            Include your church name: <strong>{church?.name || "your church"}</strong> and the number of credits you purchased.
+          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 26, fontWeight: 700, color: "var(--brand)", marginBottom: 16 }}>{WHATSAPP}</div>
+          <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 16, lineHeight: 1.5 }}>
+            Please include: <strong>{church?.name || "your church name"}</strong> + amount paid
           </div>
           <div style={{ display: "flex", gap: 10 }}>
-            <button className="btn bg" style={{ flex: 1 }} onClick={() => handleCopy(WHATSAPP)}>
-              Copy Number
-            </button>
+            <button className="btn bg" style={{ flex: 1 }} onClick={() => handleCopy(WHATSAPP)}>Copy Number</button>
             <a
-              href={`https://wa.me/234${WHATSAPP.replace(/^0/, "")}?text=${encodeURIComponent(`Hi! I just paid ₦${nairaVal.toLocaleString()} for ${creditsVal} ChurchTrackr SMS credits.\nChurch: ${church?.name || ""}\nPlease credit my account. Thank you!`)}`}
+              href={`https://wa.me/234${WHATSAPP.replace(/^0/, "")}?text=${encodeURIComponent(
+                `Hi! I just paid ₦${buying.naira.toLocaleString()} for ${buying.credits} ChurchTrakr SMS credits (${buying.msgs} messages).\nChurch: ${church?.name || ""}\nPlease credit my account. Thank you!`
+              )}`}
               target="_blank" rel="noreferrer"
               className="btn bs"
-              style={{ flex: 1, textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
-            >
+              style={{ flex: 1, textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
               💬 Open WhatsApp
             </a>
           </div>
         </div>
 
-        <div style={{ background: "#fff8e6", border: "1.5px solid var(--accent)", borderRadius: 12, padding: 14, fontSize: 13, color: "#8a5a00" }}>
-          ⏱ Credits are usually added within <strong>1–2 hours</strong> during business hours (Mon–Fri, 9am–6pm WAT).
+        <div style={{ background: "#fff8e6", border: "1.5px solid var(--accent)", borderRadius: 12, padding: "12px 14px", fontSize: 13, color: "#8a5a00", lineHeight: 1.6 }}>
+          ⏱ Credits are added within <strong>1–2 hours</strong>, Mon–Fri, 9am–6pm WAT.
         </div>
       </div>
     </div>
@@ -128,115 +137,107 @@ export default function CreditsPage({ showToast }) {
       <div className="ph">
         <button className="btn bg" style={{ marginBottom: 14 }} onClick={() => navigate("/messaging")}><ChevL /> Back</button>
         <h1>Buy Credits</h1>
-        <p>Current balance: <strong>{credits} credits</strong></p>
+        <p>Current balance: <strong>{currentCredits.toLocaleString()} credits</strong></p>
       </div>
+
       <div className="pc">
-
-        {/* How it works */}
-        <div className="card" style={{ marginBottom: 20, background: "var(--surface2)", boxShadow: "none" }}>
-          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>How credits work</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, textAlign: "center" }}>
-            {[
-              { icon: "💳", top: "₦1", bot: "= 1 credit" },
-              { icon: "💬", top: "5 credits", bot: "= 1 SMS"  },
-              { icon: "📲", top: "₦5", bot: "per message" },
-            ].map(s => (
-              <div key={s.top} style={{ background: "var(--surface)", borderRadius: 10, padding: "10px 6px" }}>
-                <div style={{ fontSize: 22, marginBottom: 4 }}>{s.icon}</div>
-                <div style={{ fontWeight: 700, fontSize: 13, color: "var(--brand)" }}>{s.top}</div>
-                <div style={{ fontSize: 11, color: "var(--muted)" }}>{s.bot}</div>
-              </div>
-            ))}
+        {/* ── Current balance card ── */}
+        <div style={{ background: "var(--surface2)", borderRadius: 16, padding: "16px 18px", marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".06em" }}>Current Balance</div>
+            <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 30, fontWeight: 700, color: "var(--brand)", marginTop: 2 }}>{currentCredits.toLocaleString()}</div>
+            <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 2 }}>≈ {Math.floor(currentCredits / CREDITS_PER_MSG)} messages left</div>
           </div>
+          <div style={{ fontSize: 40 }}>💬</div>
         </div>
 
-        {/* Quick presets */}
-        <div className="stitle" style={{ marginBottom: 10 }}>Quick amounts</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 20 }}>
-          {PRESETS.map(n => (
-            <div key={n} onClick={() => handlePreset(n)} style={{
-              padding: "12px 8px", borderRadius: 12, cursor: "pointer", textAlign: "center",
-              background: creditsVal === n && mode === "credits" ? "var(--brand)" : "var(--surface)",
-              color:      creditsVal === n && mode === "credits" ? "#fff" : "var(--text)",
-              border: `1.5px solid ${creditsVal === n && mode === "credits" ? "var(--brand)" : "var(--border)"}`,
-              transition: "all .12s",
-            }}>
-              <div style={{ fontWeight: 700, fontSize: 15 }}>{n}</div>
-              <div style={{ fontSize: 11, marginTop: 2, opacity: .7 }}>credits</div>
-              <div style={{ fontSize: 11, marginTop: 1, fontWeight: 600, opacity: .8 }}>
-                ₦{n.toLocaleString()}
+        {/* ── Packages ── */}
+        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 12 }}>
+          Choose a Package
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
+          {PACKAGES.map(pkg => {
+            const isSel = selected?.credits === pkg.credits;
+            return (
+              <div key={pkg.credits}
+                onClick={() => { setSelected(isSel ? null : pkg); setMsgs(""); }}
+                style={{
+                  borderRadius: 16, padding: "16px", cursor: "pointer",
+                  border: `2px solid ${isSel ? "var(--brand)" : pkg.popular ? "var(--brand)" : "var(--border)"}`,
+                  background: isSel ? "var(--brand)" : "var(--surface)",
+                  color: isSel ? "#fff" : "var(--text)",
+                  transition: "all .12s",
+                  position: "relative",
+                }}>
+                {pkg.popular && !isSel && (
+                  <div style={{ position: "absolute", top: -1, right: 14, background: "var(--brand)", color: "#fff", fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: "0 0 8px 8px", letterSpacing: ".04em" }}>
+                    MOST POPULAR
+                  </div>
+                )}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 15 }}>{pkg.label}</div>
+                    <div style={{ fontSize: 13, opacity: isSel ? .85 : undefined, color: isSel ? undefined : "var(--muted)", marginTop: 2 }}>
+                      {pkg.msgs} messages · {pkg.credits.toLocaleString()} credits
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 22, fontWeight: 700 }}>₦{pkg.naira.toLocaleString()}</div>
+                    <div style={{ fontSize: 11, opacity: .7 }}>₦{NAIRA_PER_CREDIT}/credit</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* ── Custom calculator ── */}
+        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 12 }}>
+          Or enter how many messages you need
+        </div>
+        <div style={{ background: "var(--surface)", borderRadius: 16, padding: "18px", border: "1.5px solid var(--border)", marginBottom: 20 }}>
+          <div className="fg" style={{ marginBottom: 0 }}>
+            <label className="fl">Number of messages</label>
+            <input className="fi" type="number" min="1" placeholder="e.g. 150"
+              value={msgs}
+              onChange={e => { setMsgs(e.target.value); setSelected(null); }}
+              style={{ fontSize: 20, fontWeight: 700, textAlign: "center" }} />
+          </div>
+          {msgCount > 0 && (
+            <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div style={{ background: "var(--surface2)", borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
+                <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, marginBottom: 4 }}>CREDITS NEEDED</div>
+                <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 22, fontWeight: 700, color: "var(--brand)" }}>{creditCount.toLocaleString()}</div>
+              </div>
+              <div style={{ background: "var(--surface2)", borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
+                <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, marginBottom: 4 }}>TOTAL COST</div>
+                <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 22, fontWeight: 700, color: "var(--success)" }}>₦{nairaTotal.toLocaleString()}</div>
               </div>
             </div>
-          ))}
+          )}
         </div>
 
-        {/* Custom calculator */}
-        <div className="stitle" style={{ marginBottom: 10 }}>Or calculate exactly</div>
-
-        {/* Mode toggle */}
-        <div style={{ display: "flex", background: "var(--surface2)", borderRadius: 11, padding: 4, marginBottom: 14 }}>
-          {[
-            { key: "credits",  label: "Enter credits"  },
-            { key: "messages", label: "Enter messages" },
-          ].map(m => (
-            <button key={m.key} onClick={() => { setMode(m.key); setAmount(""); }}
-              style={{
-                flex: 1, padding: "9px 4px", borderRadius: 8, border: "none", cursor: "pointer",
-                fontSize: 13, fontWeight: 600, fontFamily: "'DM Sans',sans-serif",
-                background: mode === m.key ? "var(--surface)" : "transparent",
-                color:      mode === m.key ? "var(--brand)" : "var(--muted)",
-                boxShadow:  mode === m.key ? "var(--sh)" : "none",
-                transition: "all .15s",
-              }}>
-              {m.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="fg" style={{ marginBottom: 16 }}>
-          <label className="fl">
-            {mode === "credits" ? "How many credits?" : "How many messages do you want to send?"}
-          </label>
-          <input className="fi" type="number" min="1" placeholder={mode === "credits" ? "e.g. 500" : "e.g. 100"}
-            value={amount} onChange={e => setAmount(e.target.value)} />
-        </div>
-
-        {/* Live conversion */}
-        {(Number(amount) > 0) && (
-          <div className="card" style={{ marginBottom: 20, border: "1.5px solid var(--brand-light)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <span style={{ fontWeight: 600, fontSize: 14 }}>Credits</span>
-              <span style={{ fontFamily: "'Playfair Display',serif", fontSize: 22, fontWeight: 700, color: "var(--brand)" }}>
-                {creditsVal.toLocaleString()}
-              </span>
+        {/* Summary + proceed */}
+        {buying && (
+          <div style={{ background: "var(--surface2)", borderRadius: 14, padding: "14px 16px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <div style={{ fontWeight: 700 }}>You're buying</div>
+              <div style={{ fontSize: 13, color: "var(--muted)" }}>{buying.msgs.toLocaleString()} messages · {buying.credits.toLocaleString()} credits</div>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <span style={{ fontWeight: 600, fontSize: 14 }}>SMS messages</span>
-              <span style={{ fontFamily: "'Playfair Display',serif", fontSize: 22, fontWeight: 700, color: "var(--brand-mid)" }}>
-                ≈ {messagesVal.toLocaleString()}
-              </span>
-            </div>
-            <div style={{ height: 1, background: "var(--border)", margin: "10px 0" }} />
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontWeight: 700, fontSize: 15 }}>Total to pay</span>
-              <span style={{ fontFamily: "'Playfair Display',serif", fontSize: 26, fontWeight: 700, color: "var(--success)" }}>
-                ₦{nairaVal.toLocaleString()}
-              </span>
-            </div>
+            <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 24, fontWeight: 700, color: "var(--brand)" }}>₦{buying.naira.toLocaleString()}</div>
           </div>
         )}
 
         <button className="btn bp blg" onClick={handleProceed}
-          disabled={creditsVal < 10}
-          style={{ opacity: creditsVal < 10 ? .5 : 1 }}>
+          disabled={!buying}
+          style={{ opacity: buying ? 1 : .4 }}>
           Proceed to Payment →
         </button>
 
-        {creditsVal < 10 && Number(amount) > 0 && (
-          <p style={{ fontSize: 12, color: "var(--danger)", textAlign: "center", marginTop: 8 }}>
-            Minimum purchase is 10 credits (₦10)
-          </p>
-        )}
+        {/* Pricing note */}
+        <p style={{ fontSize: 12, color: "var(--muted)", textAlign: "center", marginTop: 14, lineHeight: 1.6 }}>
+          ₦1.20 per credit · 10 credits per SMS · No expiry
+        </p>
       </div>
     </div>
   );
