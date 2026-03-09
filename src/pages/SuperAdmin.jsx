@@ -722,9 +722,24 @@ function SupportMessages({ showToast }) {
   const [viewMsg,  setViewMsg]  = useState(null);
 
   useEffect(() => {
-    supabase.from("support_messages").select("*, churches(name, admin_name, phone, email)")
+    supabase.from("support_messages").select("*")
       .order("created_at", { ascending: false })
-      .then(({ data }) => { if (data) setMessages(data); setLoading(false); });
+      .then(async ({ data }) => {
+        if (!data) { setLoading(false); return; }
+        // Fetch church info separately to avoid FK join 400 errors
+        const churchIds = [...new Set(data.map(m => m.church_id).filter(Boolean))];
+        let churchMap = {};
+        if (churchIds.length) {
+          for (const cid of churchIds) {
+            const { data: ch } = await supabase.from("churches")
+              .select("id, name, admin_name, phone, email")
+              .eq("id", cid).single();
+            if (ch) churchMap[ch.id] = ch;
+          }
+        }
+        setMessages(data.map(m => ({ ...m, churches: churchMap[m.church_id] || null })));
+        setLoading(false);
+      });
   }, []);
 
   const markRead = async (id) => {
@@ -879,14 +894,21 @@ function AdminDashboard({ user, onLogout }) {
       { data: ul, error: e3 },
     ] = await Promise.all([
       supabase.from("churches").select("*").order("created_at", { ascending: false }),
-      supabase.from("sender_id_requests").select("*, churches(name, admin_name, phone)").order("created_at", { ascending: false }),
+      supabase.from("sender_id_requests").select("*").order("created_at", { ascending: false }),
       supabase.from("usage_logs").select("*").order("created_at", { ascending: false }).limit(500),
     ]);
     if (e1) console.error("churches:", e1.message);
     if (e2) console.error("sender_id_requests:", e2.message);
     if (e3) console.error("usage_logs:", e3.message);
     if (ch) setChurches(ch);
-    if (sr) setRequests(sr);
+    // Enrich sender_id_requests with church info from already-fetched churches
+    if (sr && ch) {
+      const churchMap = {};
+      ch.forEach(c => { churchMap[c.id] = c; });
+      setRequests(sr.map(r => ({ ...r, churches: churchMap[r.church_id] || null })));
+    } else if (sr) {
+      setRequests(sr);
+    }
     if (ul) setUsageLogs(ul);
     if (e2 || e3) {
       showToast("⚠️ Some data couldn't load — RLS policies may need updating. See console.");

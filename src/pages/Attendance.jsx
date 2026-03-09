@@ -1,5 +1,6 @@
 // src/pages/Attendance.jsx
 import { useState } from "react";
+import { useAuth } from "../hooks/useAuth";
 import { fmtDate } from "../lib/helpers";
 import { ChevL, ChevR } from "../components/ui/Icons";
 
@@ -49,7 +50,6 @@ const GreenHeader = ({ children }) => (
     padding: "max(env(safe-area-inset-top,32px),32px) 24px 24px",
     position: "relative", overflow: "hidden",
   }}>
-    {/* Subtle texture orb */}
     <div style={{ position:"absolute", top:-60, right:-40, width:200, height:200,
       borderRadius:"50%", background:"rgba(255,255,255,.03)", pointerEvents:"none" }} />
     <div style={{ position:"absolute", bottom:-30, left:-20, width:120, height:120,
@@ -79,7 +79,6 @@ function SessionSummary({ session, group, onBack, onContinueMarking }) {
             <div style={{ fontSize:13, color:"rgba(255,255,255,.55)", marginTop:4,
               fontFamily: T.sans }}>{group?.name} · {fmtDate(session.date)}</div>
           </div>
-          {/* Rate ring */}
           <div style={{ textAlign:"center", flexShrink:0 }}>
             <div style={{ fontFamily: T.serif, fontSize:44, fontWeight:700, lineHeight:1,
               color: rate >= 80 ? "#6ee7b7" : rate >= 60 ? "#fcd34d" : "#fca5a5" }}>{rate}%</div>
@@ -88,7 +87,6 @@ function SessionSummary({ session, group, onBack, onContinueMarking }) {
           </div>
         </div>
 
-        {/* Stat strip inside header */}
         <div style={{ display:"flex", gap:10, marginTop:20 }}>
           {[["Present", presentCnt, "#6ee7b7", "rgba(110,231,183,.1)"],
             ["Absent",  absentCnt,  "#fca5a5", "rgba(252,165,165,.1)"],
@@ -108,7 +106,6 @@ function SessionSummary({ session, group, onBack, onContinueMarking }) {
       </GreenHeader>
 
       <div style={{ padding:"20px 20px 32px" }}>
-        {/* Action buttons — at the top */}
         <div style={{ display:"flex", gap:10, marginBottom:24 }}>
           {onContinueMarking && (
             <button onClick={onContinueMarking} style={{
@@ -128,7 +125,6 @@ function SessionSummary({ session, group, onBack, onContinueMarking }) {
           }}>Done</button>
         </div>
 
-        {/* Absent */}
         {absentList.length > 0 ? (
           <div style={{ background:"#fff", borderRadius:18, overflow:"hidden",
             border:`1px solid ${T.border}`, marginBottom:14,
@@ -166,7 +162,6 @@ function SessionSummary({ session, group, onBack, onContinueMarking }) {
           </div>
         )}
 
-        {/* Present */}
         {presentCnt > 0 && (
           <div style={{ background:"#fff", borderRadius:18, overflow:"hidden",
             border:`1px solid ${T.border}`, boxShadow:"0 1px 6px rgba(0,0,0,.04)" }}>
@@ -218,6 +213,7 @@ async function withRetry(fn, maxAttempts = 3, delayMs = 800) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function Attendance({ groups, members, attendanceHistory, saveAttendance, showToast }) {
+  const { church } = useAuth();
   const [step,             setStep]             = useState("group");
   const [selGrp,           setSelGrp]           = useState(null);
   const [selDate,          setSelDate]          = useState(new Date().toISOString().split("T")[0]);
@@ -226,6 +222,7 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
   const [editingSessionId, setEditingSessionId] = useState(null);
   const [saving,           setSaving]           = useState(false);
   const [saveErr,          setSaveErr]          = useState("");
+  const [markMode,         setMarkMode]         = useState("mark_present"); // "mark_present" | "mark_absent"
 
   const startMarking   = (g) => { setSelGrp(g); setStep("date"); };
   const togglePresent  = (id) => setRecs(rs => rs.map(r => r.memberId === id ? { ...r, present: !r.present } : r));
@@ -239,8 +236,14 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
       setRecs(existing.records.map(r => ({ ...r })));
       setEditingSessionId(existing.id);
     } else {
-      const gm = members.filter(m => (m.groupIds || []).includes(selGrp.id));
-      setRecs(gm.map(m => ({ memberId: m.id, name: m.name, present: true })));
+      const gm   = members.filter(m => (m.groupIds || []).includes(selGrp.id));
+      // Read marking mode preference from Settings (default: mark_present)
+      const mode = (church?.id ? localStorage.getItem(`attendance_mode_${church.id}`) : null) || "mark_present";
+      setMarkMode(mode);
+      // mark_present (default) → everyone starts ABSENT, tap = mark present
+      // mark_absent → everyone starts PRESENT, tap = mark absent
+      const defaultPresent = mode === "mark_absent";
+      setRecs(gm.map(m => ({ memberId: m.id, name: m.name, present: defaultPresent })));
       setEditingSessionId(null);
     }
     setStep("mark");
@@ -310,7 +313,6 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
               borderRadius:18, padding:"18px 20px", marginBottom:10,
               cursor:"pointer", boxShadow:"0 1px 4px rgba(0,0,0,.04)",
             }}>
-              {/* Group initial medallion */}
               <div style={{
                 width:44, height:44, borderRadius:12, flexShrink:0,
                 background:`linear-gradient(135deg, ${T.forestMid}, ${T.forest})`,
@@ -321,8 +323,7 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ fontWeight:700, fontSize:16, fontFamily: T.sans,
                   color: T.text, letterSpacing:"-.01em" }}>{g.name}</div>
-                <div style={{ fontSize:12, color: T.muted, marginTop:3,
-                  fontFamily: T.sans }}>
+                <div style={{ fontSize:12, color: T.muted, marginTop:3, fontFamily: T.sans }}>
                   {cnt} member{cnt !== 1 ? "s" : ""}
                   {lastSess ? ` · ${fmtDate(lastSess.date)}` : " · No sessions yet"}
                 </div>
@@ -386,8 +387,7 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
                     color: sel ? "rgba(255,255,255,.7)" : T.green }}>
                     ✓ {s.records.filter(r => r.present).length}/{s.records.length}
                   </div>}
-                  {!s && <div style={{ fontSize:11, marginTop:6, opacity:0.4,
-                    fontFamily: T.sans }}>Not marked yet</div>}
+                  {!s && <div style={{ fontSize:11, marginTop:6, opacity:0.4, fontFamily: T.sans }}>Not marked yet</div>}
                 </div>
               );
             })}
@@ -446,8 +446,9 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
 
   // ── Step 3: Mark attendance ──────────────────────────────────────────────
   if (step === "mark") {
-    const pct      = recs.length ? Math.round((presentCnt / recs.length) * 100) : 0;
-    const barColor = pct >= 80 ? T.green : pct >= 60 ? "#d97706" : T.red;
+    const pct         = recs.length ? Math.round((presentCnt / recs.length) * 100) : 0;
+    const barColor    = pct >= 80 ? T.green : pct >= 60 ? "#d97706" : T.red;
+    const isMarkAbsent = markMode === "mark_absent";
 
     return (
       <div style={{ background: T.ivory, minHeight:"100vh", paddingBottom:110 }}>
@@ -456,13 +457,39 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
         <div className="att-top" style={{ background: T.ivory }}>
 
           {/* Nav */}
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
             <BackBtn label="Back" onClick={() => setStep("date")} />
             <div style={{ textAlign:"right" }}>
               <div style={{ fontWeight:700, fontSize:15, color: T.text,
                 fontFamily: T.sans, letterSpacing:"-.01em" }}>{selGrp.name}</div>
               <div style={{ fontSize:12, color: T.muted, marginTop:1,
                 fontFamily: T.sans }}>{fmtDate(selDate)}</div>
+            </div>
+          </div>
+
+          {/* ── Mode banner ── */}
+          <div style={{
+            background: isMarkAbsent ? "#fff8f0" : "#f0fdf6",
+            border:`1px solid ${isMarkAbsent ? "#fed7aa" : "#bbf7d0"}`,
+            borderRadius:12, padding:"10px 14px", marginBottom:12,
+          }}>
+            <div style={{ fontFamily: T.sans, fontWeight:700, fontSize:13,
+              color: isMarkAbsent ? "#c2410c" : T.green, marginBottom:3 }}>
+              {isMarkAbsent
+                ? "✕  Marking absent members"
+                : "✅  Marking present members (default)"}
+            </div>
+            <div style={{ fontFamily: T.sans, fontSize:11, color: T.muted, lineHeight:1.6 }}>
+              {isMarkAbsent
+                ? "Everyone starts as present. Tap ✕ to mark someone absent."
+                : "Everyone starts as absent. Tap ✓ next to each person who is here."}
+              {" "}
+              <span
+                onClick={() => showToast("Go to Settings → Attendance to change this")}
+                style={{ color: T.forest, fontWeight:600, cursor:"pointer",
+                  textDecoration:"underline", textDecorationStyle:"dotted" }}>
+                Change in Settings
+              </span>
             </div>
           </div>
 
@@ -501,7 +528,9 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
           </div>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
             <span style={{ fontSize:12, color: T.muted, fontFamily: T.sans }}>
-              {recs.length} members · tap ✕ to mark absent
+              {isMarkAbsent
+                ? `${recs.length} members · tap ✕ to mark absent`
+                : `${recs.length} members · tap ✕ to mark absent`}
             </span>
             <span style={{ fontSize:12, fontWeight:700, color:barColor,
               fontFamily: T.sans }}>{pct}%</span>
@@ -515,19 +544,29 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
           )}
 
           {recs.map((r, idx) => {
-            const isAbsent = r.present === false;
+            const isPresent = r.present === true;
+            const isAbsent  = r.present === false;
+
+            // mark_present mode (default): tap = mark PRESENT → row goes green
+            // mark_absent  mode:           tap = mark ABSENT  → row goes red
+            const rowHighlighted = isMarkAbsent ? isAbsent : isPresent;
+            const rowBg     = rowHighlighted ? (isMarkAbsent ? T.redSoft   : T.greenSoft) : "#fff";
+            const rowBorder = rowHighlighted ? (isMarkAbsent ? T.redBorder : "rgba(22,163,74,.25)") : T.border;
+            const rowShadow = rowHighlighted ? (isMarkAbsent ? "0 2px 10px rgba(220,38,38,.07)" : "0 2px 10px rgba(22,163,74,.07)") : "0 1px 3px rgba(0,0,0,.03)";
+            const nameColor = rowHighlighted ? (isMarkAbsent ? T.red : T.green) : T.muted;
+            const btnActive = rowHighlighted;
+            const btnBg     = btnActive ? (isMarkAbsent ? T.red : T.green) : "transparent";
+            const btnBorder = btnActive ? (isMarkAbsent ? T.red : T.green) : "#e2e0da";
+
             return (
               <div key={r.memberId} style={{
                 display:"flex", alignItems:"center",
                 padding:"17px 18px", borderRadius:16, marginBottom:8,
-                background: isAbsent ? T.redSoft : "#fff",
-                border:`1px solid ${isAbsent ? T.redBorder : T.border}`,
+                background: rowBg, border:`1px solid ${rowBorder}`,
                 gap:14, transition:"all .2s",
-                boxShadow: isAbsent
-                  ? "0 2px 10px rgba(220,38,38,.07)"
-                  : "0 1px 3px rgba(0,0,0,.03)",
+                boxShadow: rowShadow,
               }}>
-                {/* Row number — quiet, luxury detail */}
+                {/* Row number */}
                 <div style={{
                   flexShrink:0, width:22, textAlign:"right",
                   fontFamily: T.sans, fontSize:11, color: T.muted,
@@ -539,33 +578,48 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
                   <div style={{
                     fontWeight:600, fontSize:15, lineHeight:1.3,
                     fontFamily: T.sans, letterSpacing:"-.01em",
-                    color: isAbsent ? T.red : T.text,
-                    transition:"color .2s",
+                    color: nameColor, transition:"color .2s",
                   }}>{r.name}</div>
                 </div>
 
-                {/* The ✕ — elegant SVG cross, slightly rotated */}
+                {/* Action button — ✓ for present, ✕ for absent */}
                 <button
                   onClick={() => togglePresent(r.memberId)}
                   style={{
                     flexShrink:0, width:36, height:36, borderRadius:10,
-                    border:`1.5px solid ${isAbsent ? T.red : "#e2e0da"}`,
-                    background: isAbsent ? T.red : "transparent",
+                    border:`1.5px solid ${btnBorder}`,
+                    background: btnBg,
                     cursor:"pointer", display:"flex", alignItems:"center",
                     justifyContent:"center", padding:0,
                     transition:"all .2s",
                   }}
-                  aria-label={isAbsent ? "Mark present" : "Mark absent"}
+                  aria-label={isPresent ? "Mark absent" : "Mark present"}
                 >
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none"
-                    style={{ transform:"rotate(5deg)" }}>
-                    <line x1="1" y1="1" x2="11" y2="11"
-                      stroke={isAbsent ? "#fff" : "#c8c4bb"}
-                      strokeWidth="2" strokeLinecap="round"/>
-                    <line x1="11" y1="1" x2="1" y2="11"
-                      stroke={isAbsent ? "#fff" : "#c8c4bb"}
-                      strokeWidth="2" strokeLinecap="round"/>
-                  </svg>
+                  {btnActive ? (
+                    isMarkAbsent ? (
+                      /* Red ✕ for marking absent */
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ transform:"rotate(5deg)" }}>
+                        <line x1="1" y1="1" x2="11" y2="11" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
+                        <line x1="11" y1="1" x2="1" y2="11" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
+                      </svg>
+                    ) : (
+                      /* Green ✓ for marking present */
+                      <svg width="13" height="10" viewBox="0 0 13 10" fill="none">
+                        <path d="M1.5 5L5 8.5L11.5 1.5" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )
+                  ) : isMarkAbsent ? (
+                    /* Inactive ✓ for mark_absent mode (everyone starts present) */
+                    <svg width="13" height="10" viewBox="0 0 13 10" fill="none">
+                      <path d="M1.5 5L5 8.5L11.5 1.5" stroke="#c8c4bb" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  ) : (
+                    /* Inactive ✕ for default mark_present mode (everyone starts absent) */
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ transform:"rotate(5deg)" }}>
+                      <line x1="1" y1="1" x2="11" y2="11" stroke="#c8c4bb" strokeWidth="2" strokeLinecap="round"/>
+                      <line x1="11" y1="1" x2="1" y2="11" stroke="#c8c4bb" strokeWidth="2" strokeLinecap="round"/>
+                    </svg>
+                  )}
                 </button>
               </div>
             );

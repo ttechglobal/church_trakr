@@ -72,7 +72,6 @@ function TemplatesTab({ showToast }) {
 
   return (
     <div>
-      {/* My Templates */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <div style={{ fontWeight: 700, fontSize: 15 }}>My Templates ({templates.length})</div>
         {!addMode && !editId && (
@@ -118,7 +117,6 @@ function TemplatesTab({ showToast }) {
         </div>
       ))}
 
-      {/* Built-in templates — read only */}
       <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10, marginTop: templates.length > 0 ? 20 : 8 }}>
         Built-in Templates <span style={{ fontWeight: 400, color: "var(--muted)", fontSize: 12 }}>(read-only)</span>
       </div>
@@ -272,8 +270,6 @@ function ChangePasswordModal({ onClose, showToast }) {
   );
 }
 
-// ── Main Settings Page ────────────────────────────────────────────────────────
-
 // ── Contact Support Modal ─────────────────────────────────────────────────────
 const WHATSAPP_SUPPORT = "2348050340350";
 
@@ -346,6 +342,67 @@ function SupportModal({ church, onClose, showToast }) {
   );
 }
 
+// ── Attendance Mode Modal ─────────────────────────────────────────────────────
+function AttendanceModeModal({ churchId, onClose, showToast }) {
+  const key  = `attendance_mode_${churchId}`;
+  const [mode, setMode] = useState(localStorage.getItem(key) || "mark_present");
+
+  const save = () => {
+    localStorage.setItem(key, mode);
+    showToast("Attendance preference saved ✅");
+    onClose();
+  };
+
+  const Opt = ({ value, title, desc, icon }) => (
+    <div onClick={() => setMode(value)} style={{
+      border: `2px solid ${mode === value ? "var(--brand)" : "var(--border)"}`,
+      borderRadius: 14, padding: "16px 18px", cursor: "pointer",
+      background: mode === value ? "var(--brand-pale, #edf7f1)" : "var(--surface)",
+      marginBottom: 12, display: "flex", alignItems: "flex-start", gap: 14,
+      transition: "all .15s",
+    }}>
+      <div style={{ fontSize: 22, flexShrink: 0, marginTop: 1 }}>{icon}</div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4,
+          color: mode === value ? "var(--brand)" : "var(--text)" }}>{title}</div>
+        <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.6 }}>{desc}</div>
+      </div>
+      <div style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, marginTop: 2,
+        border: `2px solid ${mode === value ? "var(--brand)" : "var(--border)"}`,
+        background: mode === value ? "var(--brand)" : "transparent",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        {mode === value && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff" }} />}
+      </div>
+    </div>
+  );
+
+  return (
+    <Modal title="Attendance Marking Mode" onClose={onClose}>
+      <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 18, lineHeight: 1.7 }}>
+        Choose how you prefer to mark attendance. This affects all groups.
+      </p>
+      <Opt
+        value="mark_present"
+        icon="✅"
+        title="Mark Who Was Present (Default)"
+        desc="Everyone starts as present. Tap ✕ next to anyone who was absent. Best for most churches — fastest when most people attend."
+      />
+      <Opt
+        value="mark_absent"
+        icon="✕"
+        title="Mark Who Was Absent"
+        desc="Everyone starts as absent. Tap ✕ next to each person who attended to mark them present. Better for large congregations."
+      />
+      <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+        <button className="btn bg" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
+        <button className="btn bp" style={{ flex: 1 }} onClick={save}>Save Preference</button>
+      </div>
+    </Modal>
+  );
+}
+
+// ── Main Settings Page ────────────────────────────────────────────────────────
 export default function Settings({ showToast }) {
   const { signOut, church, user, updateChurch } = useAuth();
   const navigate = useNavigate();
@@ -367,6 +424,14 @@ export default function Settings({ showToast }) {
 
   const adminName  = church?.admin_name || user?.user_metadata?.full_name || "";
   const churchName = church?.name || "My Church";
+
+  // Read current attendance mode for display in the settings row
+  const currentAttMode = church?.id
+    ? (localStorage.getItem(`attendance_mode_${church.id}`) || "mark_present")
+    : "mark_present";
+  const attModeLabel = currentAttMode === "mark_absent"
+    ? "Currently: Mark who is absent"
+    : "Currently: Mark who is present (default)";
 
   return (
     <div className="page">
@@ -404,7 +469,6 @@ export default function Settings({ showToast }) {
             <div style={{ background: "linear-gradient(135deg, var(--brand), #7c3aed)", borderRadius: 18, padding: "20px 16px", marginBottom: 24, display: "flex", alignItems: "center", gap: 14 }}>
               <div style={{ width: 52, height: 52, borderRadius: "50%", background: "rgba(255,255,255,.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>⛪</div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                {/* Church name — wraps instead of truncating */}
                 <div style={{ fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: 16, color: "#fff", lineHeight: 1.3, wordBreak: "break-word" }}>{churchName}</div>
                 {adminName && <div style={{ fontSize: 13, color: "rgba(255,255,255,.75)", marginTop: 3 }}>{adminName}</div>}
                 {church?.location && <div style={{ fontSize: 12, color: "rgba(255,255,255,.6)", marginTop: 2 }}>📍 {church.location}</div>}
@@ -443,6 +507,20 @@ export default function Settings({ showToast }) {
               </div>
             </div>
 
+            {/* ── ATTENDANCE section — NEW ── */}
+            <div className="st-label">ATTENDANCE</div>
+            <div className="stsec" style={{ marginBottom: 20 }}>
+              <div className="strow" onClick={() => setModal("attendance")}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div className="st-ico" style={{ background: "#d4f1e4" }}>✅</div>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>Marking Mode</div>
+                    <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 1 }}>{attModeLabel}</div>
+                  </div>
+                </div><ChevR />
+              </div>
+            </div>
+
             {/* ACCOUNT section */}
             <div className="st-label">ACCOUNT</div>
             <div className="stsec" style={{ marginBottom: 32 }}>
@@ -466,7 +544,7 @@ export default function Settings({ showToast }) {
               </div>
             </div>
 
-            {/* ── SUPPORT section ── */}
+            {/* SUPPORT section */}
             <div className="st-label" style={{ marginTop: 4 }}>SUPPORT</div>
             <div className="stsec" style={{ marginBottom: 32 }}>
               <div className="strow" onClick={() => setModal("support")}>
@@ -484,10 +562,11 @@ export default function Settings({ showToast }) {
         )}
       </div>
 
-      {modal === "profile"  && <ChurchProfileModal church={church} onClose={() => setModal(null)} onSave={handleSaveChurch} />}
-      {modal === "sms"      && <SmsSettingsModal church={church} onClose={() => setModal(null)} onSave={async (u) => { const { error } = await updateChurch(u); return { error }; }} showToast={showToast} />}
-      {modal === "password" && <ChangePasswordModal onClose={() => setModal(null)} showToast={showToast} />}
-      {modal === "support"  && <SupportModal church={church} onClose={() => setModal(null)} showToast={showToast} />}
+      {modal === "profile"    && <ChurchProfileModal church={church} onClose={() => setModal(null)} onSave={handleSaveChurch} />}
+      {modal === "sms"        && <SmsSettingsModal church={church} onClose={() => setModal(null)} onSave={async (u) => { const { error } = await updateChurch(u); return { error }; }} showToast={showToast} />}
+      {modal === "password"   && <ChangePasswordModal onClose={() => setModal(null)} showToast={showToast} />}
+      {modal === "support"    && <SupportModal church={church} onClose={() => setModal(null)} showToast={showToast} />}
+      {modal === "attendance" && <AttendanceModeModal churchId={church?.id} onClose={() => setModal(null)} showToast={showToast} />}
     </div>
   );
 }

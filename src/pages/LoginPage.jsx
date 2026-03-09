@@ -44,10 +44,11 @@ export default function LoginPage() {
 
   return (
     <div style={{
-      minHeight:"100vh", display:"flex",
+      minHeight:"100vh", display:"flex", flexDirection:"row", flexWrap:"wrap",
       background:`linear-gradient(150deg, ${FOREST} 0%, ${FM} 60%, #1e4a34 100%)`,
       position:"relative", overflow:"hidden",
     }}>
+      <style>{`@media(max-width:640px){.ct-brand-panel{display:none!important}.ct-form-panel{max-width:100%!important;box-shadow:none!important;padding:48px 28px!important}}`}</style>
       {/* Orbs */}
       <div style={{ position:"absolute", top:-100, right:-100, width:500, height:500,
         borderRadius:"50%", pointerEvents:"none",
@@ -56,8 +57,8 @@ export default function LoginPage() {
         borderRadius:"50%", pointerEvents:"none",
         background:"radial-gradient(circle, rgba(61,122,88,.3) 0%, transparent 65%)" }} />
 
-      {/* Left brand panel — hidden on small screens */}
-      <div style={{ flex:1, display:"flex", flexDirection:"column",
+      {/* Left brand panel — hidden on mobile */}
+      <div className="ct-brand-panel" style={{ flex:1, display:"flex", flexDirection:"column",
         justifyContent:"center", padding:"60px 56px", position:"relative", zIndex:2,
         minWidth:0 }}>
         <div onClick={() => navigate("/")} style={{ cursor:"pointer",
@@ -97,10 +98,23 @@ export default function LoginPage() {
       </div>
 
       {/* Right form panel */}
-      <div style={{ width:"100%", maxWidth:480, background:"#faf9f5",
+      <div className="ct-form-panel" style={{ width:"100%", maxWidth:480, background:"#faf9f5",
         display:"flex", flexDirection:"column", justifyContent:"center",
         padding:"60px 48px", position:"relative", zIndex:2,
         boxShadow:"-24px 0 80px rgba(0,0,0,.25)" }}>
+
+        {/* Back button */}
+        <button onClick={() => navigate("/")} style={{
+          background:"none", border:"none", cursor:"pointer", padding:0,
+          display:"inline-flex", alignItems:"center", gap:6,
+          fontFamily:S, fontSize:13, fontWeight:600, color:MUTED,
+          marginBottom:32, alignSelf:"flex-start",
+        }}>
+          <svg width="6" height="11" viewBox="0 0 6 11" fill="none">
+            <path d="M5 1L1 5.5L5 10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          Back
+        </button>
 
         <div style={{ marginBottom:36 }}>
           <div style={{ fontFamily:F, fontWeight:700, fontSize:"1.8rem",

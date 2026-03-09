@@ -30,6 +30,7 @@ import MessagingHome   from "./pages/messaging/MessagingHome";
 import MessageComposer from "./pages/messaging/MessageComposer";
 import CreditsPage     from "./pages/messaging/CreditsPage";
 import MessageHistory  from "./pages/messaging/MessageHistory";
+import SuperAdmin      from "./pages/SuperAdmin";
 
 // ── Loading spinner ──────────────────────────────────────────────────────────
 function LoadingScreen() {
@@ -265,6 +266,9 @@ function AppShell() {
 function Root() {
   const { loading, isAuthenticated, church } = useAuth();
 
+  // SuperAdmin handles its own auth — never wrap in AppLayout
+  if (window.location.pathname.startsWith("/superadmin")) return <SuperAdmin />;
+
   if (loading) return <LoadingScreen />;
 
   if (isAuthenticated && church) {
@@ -276,10 +280,11 @@ function Root() {
   return (
     <Routes>
       <Route path="/"       element={<LandingPage />} />
-      <Route path="/login"  element={<LoginPage />} />
-      <Route path="/signup" element={<SignupPage />} />
-      <Route path="/forgot" element={<ForgotPage />} />
-      <Route path="*"       element={<Navigate to="/" replace />} />
+      <Route path="/login"      element={<LoginPage />} />
+      <Route path="/signup"     element={<SignupPage />} />
+      <Route path="/forgot"     element={<ForgotPage />} />
+      <Route path="/superadmin" element={<SuperAdmin />} />
+      <Route path="*"           element={<Navigate to="/login" replace />} />
     </Routes>
   );
 }

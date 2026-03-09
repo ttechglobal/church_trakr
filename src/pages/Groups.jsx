@@ -530,21 +530,10 @@ function SessionReportView({ session, group, onBack, showToast }) {
 
   return (
     <div className="page">
-      <div style={{
-        background: "linear-gradient(150deg, #1a3a2a 0%, #2d5a42 55%, #1e4a34 100%)",
-        padding: "max(env(safe-area-inset-top,32px),32px) 20px 20px",
-        position: "relative", overflow: "hidden",
-      }}>
-        <div style={{ position:"absolute", top:-40, right:-30, width:140, height:140,
-          borderRadius:"50%", background:"rgba(255,255,255,.04)", pointerEvents:"none" }} />
-        <button onClick={onBack} style={{
-          background:"rgba(255,255,255,.12)", border:"1px solid rgba(255,255,255,.2)",
-          color:"rgba(255,255,255,.85)", borderRadius:10, padding:"7px 13px", cursor:"pointer",
-          fontFamily:"'DM Sans',sans-serif", display:"inline-flex", alignItems:"center", gap:5,
-          fontSize:13, marginBottom:14,
-        }}>‹ Reports</button>
-        <div style={{ fontFamily:"'Playfair Display',serif", fontSize:24, fontWeight:700, color:"#fff" }}>{fmtDate(session.date)}</div>
-        <div style={{ fontSize:13, color:"rgba(255,255,255,.6)", marginTop:4 }}>{group.name} · Attendance Report</div>
+      <div className="ph">
+        <button className="btn bg" style={{ marginBottom: 14 }} onClick={onBack}><ChevL /> Back to Reports</button>
+        <h1>{fmtDate(session.date)}</h1>
+        <p>{group.name} · Attendance Report</p>
       </div>
       <div className="pc">
         <div className="smbar" style={{ marginBottom: 20 }}>
@@ -644,13 +633,14 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
 
   // Birthday logic — members whose birthday is today (month + day match)
   // Supports YYYY-MM-DD and MM-DD formats
-  const today = new Date();
-  const todayMD = `${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  // Use midnight to avoid UTC offset shifting dates by -1 day
+  const todayMidnight = new Date(); todayMidnight.setHours(0,0,0,0);
+  const todayMD = `${String(todayMidnight.getMonth() + 1).padStart(2, "0")}-${String(todayMidnight.getDate()).padStart(2, "0")}`;
   const getBirthdayMD = (bday) => {
     if (!bday) return null;
     const parts = bday.split("-");
-    if (parts.length === 3) return `${parts[1]}-${parts[2]}`; // YYYY-MM-DD
-    if (parts.length === 2) return `${parts[0]}-${parts[1]}`; // MM-DD
+    if (parts.length === 3) return `${parts[1].padStart(2,"0")}-${parts[2].padStart(2,"0")}`; // YYYY-MM-DD
+    if (parts.length === 2) return `${parts[0].padStart(2,"0")}-${parts[1].padStart(2,"0")}`; // MM-DD
     return null;
   };
   const birthdayToday = gm.filter(m => {
@@ -662,16 +652,16 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
     const md = getBirthdayMD(m.birthday);
     if (!md) return false;
     const [mm, dd] = md.split("-").map(Number);
-    const bday = new Date(today.getFullYear(), mm - 1, dd);
-    if (bday < today) bday.setFullYear(today.getFullYear() + 1);
-    const diff = Math.ceil((bday - today) / (1000 * 60 * 60 * 24));
-    return diff > 0 && diff <= 7;
+    const bday = new Date(todayMidnight.getFullYear(), mm - 1, dd);
+    if (bday < todayMidnight) bday.setFullYear(todayMidnight.getFullYear() + 1);
+    const diff = Math.round((bday - todayMidnight) / (1000 * 60 * 60 * 24));
+    return diff >= 0 && diff <= 7;
   }).sort((a, b) => {
     const getNext = (m) => {
       const md = getBirthdayMD(m.birthday);
       const [mm, dd] = (md || "01-01").split("-").map(Number);
-      const d = new Date(today.getFullYear(), mm - 1, dd);
-      if (d < today) d.setFullYear(today.getFullYear() + 1);
+      const d = new Date(todayMidnight.getFullYear(), mm - 1, dd);
+      if (d < todayMidnight) d.setFullYear(todayMidnight.getFullYear() + 1);
       return d;
     };
     return getNext(a) - getNext(b);
@@ -747,32 +737,19 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
 
   return (
     <div className="page">
-      <div style={{
-        background: "linear-gradient(150deg, #1a3a2a 0%, #2d5a42 55%, #1e4a34 100%)",
-        padding: "max(env(safe-area-inset-top,32px),32px) 20px 20px",
-        position: "relative", overflow: "hidden",
-      }}>
-        <div style={{ position:"absolute", top:-40, right:-30, width:140, height:140,
-          borderRadius:"50%", background:"rgba(255,255,255,.04)", pointerEvents:"none" }} />
-        <button onClick={onBack} style={{
-          background:"rgba(255,255,255,.12)", border:"1px solid rgba(255,255,255,.2)",
-          color:"rgba(255,255,255,.85)", borderRadius:10, padding:"7px 13px", cursor:"pointer",
-          fontFamily:"'DM Sans',sans-serif", display:"inline-flex", alignItems:"center", gap:5,
-          fontSize:13, marginBottom:14,
-        }}>‹ All Groups</button>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
-          <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontFamily:"'Playfair Display',serif", fontSize:24, fontWeight:700,
-              color:"#fff", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{group.name}</div>
-            <div style={{ fontSize:13, color:"rgba(255,255,255,.6)", marginTop:4 }}>Leader: {group.leader || "—"}</div>
+      <div className="ph">
+        <button className="btn bg" style={{ marginBottom: 14, padding: "8px 14px" }} onClick={onBack}><ChevL /> All Groups</button>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h1 style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{group.name}</h1>
+            <p>Leader: {group.leader || "—"}</p>
           </div>
-          <button onClick={() => { setEditGroupF({ name: group.name, leader: group.leader || "" }); setEditGroupModal(true); }}
-            style={{
-              background:"rgba(255,255,255,.18)", border:"1px solid rgba(255,255,255,.25)",
-              color:"#fff", borderRadius:12, padding:"9px 13px", cursor:"pointer",
-              fontFamily:"'DM Sans',sans-serif", display:"inline-flex", alignItems:"center", gap:5, fontSize:12, flexShrink:0,
-            }}>
-            <EditIco s={13} /> Edit
+          <button
+            className="btn bg"
+            style={{ padding: "8px 12px", fontSize: 13, flexShrink: 0, display: "flex", alignItems: "center", gap: 6 }}
+            onClick={() => { setEditGroupF({ name: group.name, leader: group.leader || "" }); setEditGroupModal(true); }}
+          >
+            <EditIco s={14} /> Edit
           </button>
         </div>
       </div>
@@ -935,9 +912,9 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
               {upcomingBdays.map(m => {
                 const av = getAv(m.name);
                 const parts = m.birthday.split("-");
-                const bday = new Date(today.getFullYear(), parseInt(parts[1]) - 1, parseInt(parts[2]));
-                if (bday < today) bday.setFullYear(today.getFullYear() + 1);
-                const daysLeft = Math.ceil((bday - today) / (1000 * 60 * 60 * 24));
+                const bday = new Date(todayMidnight.getFullYear(), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                if (bday < todayMidnight) bday.setFullYear(todayMidnight.getFullYear() + 1);
+                const daysLeft = Math.round((bday - todayMidnight) / (1000 * 60 * 60 * 24));
                 return (
                   <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
                     <div className="av" style={{ background: av.bg, color: av.color, width: 38, height: 38, borderRadius: 10, fontSize: 13 }}>{av.initials}</div>
@@ -1118,58 +1095,32 @@ export default function Groups({ groups, addGroup, editGroup, removeGroup, membe
   // Church-wide birthday check for today
   const today = new Date();
   const todayMD = `${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-  // Church-wide birthdays with group name context
-  const bdaysTodayAll = members.filter(m => {
+  const totalBdaysToday = members.filter(m => {
     if (!m.birthday) return false;
     const p = m.birthday.split("-");
     return p.length >= 3 && `${p[1]}-${p[2]}` === todayMD;
-  }).map(m => ({
-    ...m,
-    groupName: groups.find(g => (m.groupIds || []).includes(g.id))?.name || "No group",
-  }));
-  const totalBdaysToday = bdaysTodayAll.length;
+  }).length;
 
   return (
     <div className="page">
-      <div style={{
-        background: "linear-gradient(150deg, #1a3a2a 0%, #2d5a42 55%, #1e4a34 100%)",
-        padding: "max(env(safe-area-inset-top,32px),32px) 20px 20px",
-        position: "relative", overflow: "hidden",
-      }}>
-        <div style={{ position:"absolute", top:-40, right:-30, width:160, height:160,
-          borderRadius:"50%", background:"rgba(255,255,255,.04)", pointerEvents:"none" }} />
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+      <div className="ph">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
-            <div style={{ fontFamily:"'Playfair Display',serif", fontSize:26, fontWeight:700, color:"#fff" }}>Groups</div>
-            <div style={{ fontSize:13, color:"rgba(255,255,255,.6)", marginTop:4 }}>{groups.length} active group{groups.length !== 1 ? "s" : ""}</div>
+            <h1>Groups</h1>
+            <p>{groups.length} active group{groups.length !== 1 ? "s" : ""}</p>
           </div>
-          <button className="btn" onClick={() => setAddModal(true)} style={{
-            background:"rgba(255,255,255,.18)", border:"1px solid rgba(255,255,255,.25)",
-            color:"#fff", borderRadius:12, padding:"10px 14px", cursor:"pointer",
-            fontFamily:"'DM Sans',sans-serif", display:"inline-flex", alignItems:"center", gap:6,
-          }}><PlusIco /> New</button>
+          <button className="btn bp" onClick={() => setAddModal(true)}><PlusIco /> New Group</button>
         </div>
       </div>
 
       <div className="pc">
         {totalBdaysToday > 0 && (
-          <div style={{ background: "linear-gradient(135deg,#fff8e6,#fff0cc)", border: "1.5px solid var(--accent)", borderRadius: 16, padding: "16px", marginBottom: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: bdaysTodayAll.length > 0 ? 12 : 0 }}>
-              <span style={{ fontSize: 28 }}>🎂</span>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 14, color: "#8a5a00" }}>{totalBdaysToday} birthday{totalBdaysToday !== 1 ? "s" : ""} today!</div>
-                <div style={{ fontSize: 12, color: "#8a5a00" }}>Open a group to send greetings</div>
-              </div>
+          <div style={{ background: "linear-gradient(135deg,#fff8e6,#fff0cc)", border: "1.5px solid var(--accent)", borderRadius: 14, padding: "14px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 28 }}>🎂</span>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 14, color: "#8a5a00" }}>{totalBdaysToday} birthday{totalBdaysToday !== 1 ? "s" : ""} today!</div>
+              <div style={{ fontSize: 13, color: "#8a5a00" }}>Open a group to send birthday greetings</div>
             </div>
-            {bdaysTodayAll.map(m => (
-              <div key={m.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderTop: "1px solid rgba(240,165,0,.2)" }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 14 }}>{m.name}</div>
-                  <div style={{ fontSize: 12, color: "#8a5a00" }}>{m.groupName}</div>
-                </div>
-                <span style={{ background: "#f5a623", color: "#fff", fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20 }}>🎉 Today</span>
-              </div>
-            ))}
           </div>
         )}
 
