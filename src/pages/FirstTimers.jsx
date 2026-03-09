@@ -1,6 +1,14 @@
 // src/pages/FirstTimers.jsx
 // Visitor tracking — record first timers, track repeat visits, convert to members.
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { sendSms } from "../services/sms";
+import { useAuth } from "../hooks/useAuth";
+import { Modal } from "../components/ui/Modal";
+import { PlusIco, ChevL, ChevR, PhoneIco, PinIco, EditIco } from "../components/ui/Icons";
+import { getAv, fmtDate } from "../lib/helpers";
+
+const CREDITS_PER_SMS = 10;
 
 // ── Retry wrapper for unreliable network ops ──────────────────────────────────
 async function withRetry(fn, maxAttempts = 3, delayMs = 800) {
@@ -20,14 +28,6 @@ async function withRetry(fn, maxAttempts = 3, delayMs = 800) {
   }
   return { data: null, error: lastError };
 }
-import { useNavigate } from "react-router-dom";
-import { sendSms } from "../services/sms";
-import { useAuth } from "../hooks/useAuth";
-
-const CREDITS_PER_SMS = 10;
-import { Modal } from "../components/ui/Modal";
-import { PlusIco, ChevL, ChevR, PhoneIco, PinIco, EditIco } from "../components/ui/Icons";
-import { getAv, fmtDate } from "../lib/helpers";
 
 // ── Add / Edit Modal ──────────────────────────────────────────────────────────
 function FirstTimerModal({ existing, onClose, onSave, saving = false }) {
@@ -422,7 +422,7 @@ export default function FirstTimers({
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             {enriched.length > 0 && (
-              <button className="bico" onClick={() => setSmsAll(true)} title="Send SMS to all">📤</button>
+              <button className="btn bg" style={{ fontSize: 13, padding: "8px 14px", display: "flex", alignItems: "center", gap: 6 }} onClick={() => setSmsAll(true)}>💬 Send SMS</button>
             )}
             <button className="btn bp" onClick={() => setAddModal(true)}><PlusIco s={16} /> Add</button>
           </div>

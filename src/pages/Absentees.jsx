@@ -98,6 +98,15 @@ function SmsModal({ absentees, members, church, onClose, showToast, onCreditUpda
         </div>
       )}
 
+      {!hasEnough && recipients.length > 0 && (
+        <div style={{ background: "#fce8e8", border: "1px solid #f5c8c8", borderRadius: 10, padding: "10px 12px", fontSize: 13, color: "var(--danger)", display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 16 }}>⚠️</span>
+          <div>
+            <div style={{ fontWeight: 700 }}>Not enough credits</div>
+            <div style={{ fontSize: 12, marginTop: 2 }}>You have <strong>{credits}</strong> credits but need <strong>{creditCost}</strong>. Top up to send this message.</div>
+          </div>
+        </div>
+      )}
       <button className="btn ba blg" disabled={sel.length === 0 || sending || !hasEnough || recipients.length === 0}
         style={{ opacity: (sel.length === 0 || !hasEnough || recipients.length === 0) ? .5 : 1 }}
         onClick={handleSend}>
@@ -219,7 +228,17 @@ export default function Absentees({ groups, members, attendanceHistory, showToas
   const [followUpData,   setFollowUpData]   = useState(() => {
     try { return JSON.parse(localStorage.getItem("ct_followup") || "{}"); } catch { return {}; }
   });
-  const [selDate,        setSelDate]        = useState(null);
+  // Auto-select: most recent Sunday that has attendance data, else most recent Sunday
+  const [selDate, setSelDate] = useState(() => {
+    if (attendanceHistory && attendanceHistory.length > 0) {
+      const sorted = [...attendanceHistory].sort((a, b) => b.date.localeCompare(a.date));
+      return sorted[0].date;
+    }
+    // Fall back to last Sunday
+    const d = new Date();
+    d.setDate(d.getDate() - d.getDay());
+    return d.toISOString().split("T")[0];
+  });
   const [selGroupId,     setSelGroupId]     = useState("all");
   const [filterStatus,   setFilterStatus]   = useState("all");
   const [datePickerOpen, setDatePickerOpen] = useState(false);
@@ -297,11 +316,11 @@ export default function Absentees({ groups, members, attendanceHistory, showToas
             <button onClick={() => { const next = selDate ? Math.min(dateIdx + 1, allDates.length - 1) : 0; setSelDate(allDates[next]); }}
               style={{ width: 40, borderRadius: 10, border: "1.5px solid var(--border)", background: "var(--surface)", fontSize: 20, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>‹</button>
             <button onClick={() => setDatePickerOpen(v => !v)}
-              style={{ flex: 1, padding: "11px 14px", borderRadius: 10, border: `2px solid ${selDate ? "var(--brand)" : "var(--border)"}`,
-                background: selDate ? "var(--brand)" : "var(--surface)", color: selDate ? "#fff" : "var(--text)",
+              style={{ flex: 1, padding: "11px 14px", borderRadius: 10, border: "2px solid var(--brand)",
+                background: "var(--brand)", color: "#fff",
                 fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'DM Sans',sans-serif", display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
-              <span>{selDate ? fmtDate(selDate) : "📅 Latest per group"}</span>
-              {!selDate && <span style={{ fontSize: 10, opacity: 0.6, fontWeight: 400 }}>tap to pick a date</span>}
+              <span>📅 {selDate ? fmtDate(selDate) : "Pick a date"}</span>
+              <span style={{ fontSize: 10, opacity: 0.75, fontWeight: 400 }}>tap to change date</span>
             </button>
             <button onClick={() => { if (!selDate) return; const prev = dateIdx <= 0 ? null : allDates[dateIdx - 1]; setSelDate(prev); }}
               disabled={!selDate}

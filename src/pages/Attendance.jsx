@@ -111,7 +111,6 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
   const [editingSessionId, setEditingSessionId] = useState(null);
   const [saving,           setSaving]           = useState(false);
   const [saveErr,          setSaveErr]          = useState("");
-  const [search,           setSearch]           = useState("");
 
   const startMarking = (g) => { setSelGrp(g); setStep("date"); };
 
@@ -126,7 +125,6 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
       setRecs(gm.map(m => ({ memberId: m.id, name: m.name, present: true })));
       setEditingSessionId(null);
     }
-    setSearch("");
     setStep("mark");
   };
 
@@ -138,9 +136,6 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
   const presentCnt = recs.filter(r => r.present === true).length;
   const absentCnt  = recs.filter(r => r.present === false).length;
 
-  const filteredRecs = search.trim()
-    ? recs.filter(r => r.name.toLowerCase().includes(search.toLowerCase()))
-    : recs;
 
   const save = async () => {
     setSaveErr("");
@@ -295,6 +290,11 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
           </div>
         </div>
 
+        {/* Instruction hint */}
+        <div style={{ fontSize: 12, color: "var(--muted)", textAlign: "center", marginBottom: 8, fontWeight: 500 }}>
+          Tap a name to mark absent (✗) or present (✓)
+        </div>
+
         {/* Live counter */}
         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
           <div style={{ flex: 1, background: "#f0fdf6", border: "1px solid #c3f0d8", borderRadius: 10, padding: "10px", textAlign: "center" }}>
@@ -311,22 +311,15 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
           </div>
         </div>
 
-        {/* Search + mark all */}
+        {/* Mark all buttons */}
         <div style={{ display: "flex", gap: 8 }}>
-          <input
-            className="fi"
-            placeholder="Search name…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{ flex: 1, padding: "9px 12px", fontSize: 14 }}
-          />
           <button onClick={() => markAll(true)}
-            style={{ background: "#f0fdf6", border: "1px solid var(--success)", borderRadius: 10, padding: "0 12px", fontSize: 12, fontWeight: 700, color: "var(--success)", cursor: "pointer", fontFamily: "'DM Sans',sans-serif", whiteSpace: "nowrap" }}>
-            All ✓
+            style={{ flex: 1, background: "#f0fdf6", border: "1.5px solid var(--success)", borderRadius: 10, padding: "10px 8px", fontSize: 13, fontWeight: 700, color: "var(--success)", cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>
+            Mark All Present ✓
           </button>
           <button onClick={() => markAll(false)}
-            style={{ background: "#fff0f0", border: "1px solid var(--danger)", borderRadius: 10, padding: "0 12px", fontSize: 12, fontWeight: 700, color: "var(--danger)", cursor: "pointer", fontFamily: "'DM Sans',sans-serif", whiteSpace: "nowrap" }}>
-            All ✗
+            style={{ flex: 1, background: "#fff0f0", border: "1.5px solid var(--danger)", borderRadius: 10, padding: "10px 8px", fontSize: 13, fontWeight: 700, color: "var(--danger)", cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>
+            Mark All Absent ✗
           </button>
         </div>
       </div>
@@ -334,11 +327,8 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
       {/* Member list */}
       <div style={{ padding: "12px 16px" }}>
         {recs.length === 0 && <div className="empty"><div className="empty-ico">👥</div><p>No members in this group.</p></div>}
-        {filteredRecs.length === 0 && search && (
-          <div style={{ textAlign: "center", padding: "30px 0", color: "var(--muted)", fontSize: 14 }}>No results for "{search}"</div>
-        )}
 
-        {filteredRecs.map(r => {
+        {recs.map(r => {
           const isAbsent = r.present === false;
           return (
             <div
@@ -346,29 +336,33 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
               onClick={() => toggleAbsent(r.memberId)}
               style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "16px 16px", borderRadius: 14, marginBottom: 8,
+                padding: "14px 16px", borderRadius: 14, marginBottom: 8,
                 background: isAbsent ? "#fff0f0" : "var(--surface)",
                 border: `2px solid ${isAbsent ? "var(--danger)" : "var(--border)"}`,
-                cursor: "pointer", transition: "all .1s", gap: 12,
+                cursor: "pointer", transition: "background .1s, border-color .1s", gap: 12,
               }}>
               {/* Name — wraps freely */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 700, fontSize: 15, wordBreak: "break-word", lineHeight: 1.3 }}>{r.name}</div>
-                <div style={{ fontSize: 12, marginTop: 3, color: isAbsent ? "var(--danger)" : "var(--success)", fontWeight: 600 }}>
-                  {isAbsent ? "✗ Absent" : "✓ Present"}
-                </div>
               </div>
 
-              {/* Big toggle button */}
+              {/*
+                Toggle indicator:
+                - Present: soft green background, green checkmark → clearly "present"
+                - Absent:  red background, white X → clearly "absent"
+                Tapping flips. The muted-when-present style makes it obvious you can tap to mark absent.
+              */}
               <div style={{
-                flexShrink: 0,
-                width: 52, height: 52, borderRadius: 14,
-                background: isAbsent ? "var(--danger)" : "#f0fdf6",
-                border: `2px solid ${isAbsent ? "var(--danger)" : "var(--success)"}`,
+                flexShrink: 0, width: 48, height: 48, borderRadius: 12,
+                background: isAbsent ? "var(--danger)" : "var(--surface2)",
+                border: `2px solid ${isAbsent ? "var(--danger)" : "var(--border)"}`,
                 display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 22, transition: "all .1s",
+                transition: "all .12s",
               }}>
-                {isAbsent ? "✗" : "✓"}
+                {isAbsent
+                  ? <span style={{ color: "#fff", fontSize: 20, fontWeight: 900, lineHeight: 1 }}>✗</span>
+                  : <span style={{ color: "var(--success)", fontSize: 20, fontWeight: 900, lineHeight: 1 }}>✓</span>
+                }
               </div>
             </div>
           );

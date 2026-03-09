@@ -122,6 +122,14 @@ export const saveAttendanceSession = async (session) => {
       }
     }
 
+    // Log to usage_logs for admin analytics (fire and forget)
+    supabase.from("usage_logs").insert({
+      church_id,
+      event_type: "attendance_saved",
+      recipient_count: validRecs.length,
+      metadata: { group_id: groupId, date, present: validRecs.filter(r => r.present).length },
+    }).then(() => {}).catch(() => {});
+
     return { data: { id: sessId, group_id: groupId, date, church_id }, error: null };
 
   } catch (e) {
