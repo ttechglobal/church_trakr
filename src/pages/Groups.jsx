@@ -530,10 +530,21 @@ function SessionReportView({ session, group, onBack, showToast }) {
 
   return (
     <div className="page">
-      <div className="ph">
-        <button className="btn bg" style={{ marginBottom: 14 }} onClick={onBack}><ChevL /> Back to Reports</button>
-        <h1>{fmtDate(session.date)}</h1>
-        <p>{group.name} · Attendance Report</p>
+      <div style={{
+        background: "linear-gradient(150deg, #1a3a2a 0%, #2d5a42 55%, #1e4a34 100%)",
+        padding: "max(env(safe-area-inset-top,32px),32px) 20px 20px",
+        position: "relative", overflow: "hidden",
+      }}>
+        <div style={{ position:"absolute", top:-40, right:-30, width:140, height:140,
+          borderRadius:"50%", background:"rgba(255,255,255,.04)", pointerEvents:"none" }} />
+        <button onClick={onBack} style={{
+          background:"rgba(255,255,255,.12)", border:"1px solid rgba(255,255,255,.2)",
+          color:"rgba(255,255,255,.85)", borderRadius:10, padding:"7px 13px", cursor:"pointer",
+          fontFamily:"'DM Sans',sans-serif", display:"inline-flex", alignItems:"center", gap:5,
+          fontSize:13, marginBottom:14,
+        }}>‹ Reports</button>
+        <div style={{ fontFamily:"'Playfair Display',serif", fontSize:24, fontWeight:700, color:"#fff" }}>{fmtDate(session.date)}</div>
+        <div style={{ fontSize:13, color:"rgba(255,255,255,.6)", marginTop:4 }}>{group.name} · Attendance Report</div>
       </div>
       <div className="pc">
         <div className="smbar" style={{ marginBottom: 20 }}>
@@ -736,19 +747,32 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
 
   return (
     <div className="page">
-      <div className="ph">
-        <button className="btn bg" style={{ marginBottom: 14, padding: "8px 14px" }} onClick={onBack}><ChevL /> All Groups</button>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <h1 style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{group.name}</h1>
-            <p>Leader: {group.leader || "—"}</p>
+      <div style={{
+        background: "linear-gradient(150deg, #1a3a2a 0%, #2d5a42 55%, #1e4a34 100%)",
+        padding: "max(env(safe-area-inset-top,32px),32px) 20px 20px",
+        position: "relative", overflow: "hidden",
+      }}>
+        <div style={{ position:"absolute", top:-40, right:-30, width:140, height:140,
+          borderRadius:"50%", background:"rgba(255,255,255,.04)", pointerEvents:"none" }} />
+        <button onClick={onBack} style={{
+          background:"rgba(255,255,255,.12)", border:"1px solid rgba(255,255,255,.2)",
+          color:"rgba(255,255,255,.85)", borderRadius:10, padding:"7px 13px", cursor:"pointer",
+          fontFamily:"'DM Sans',sans-serif", display:"inline-flex", alignItems:"center", gap:5,
+          fontSize:13, marginBottom:14,
+        }}>‹ All Groups</button>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontFamily:"'Playfair Display',serif", fontSize:24, fontWeight:700,
+              color:"#fff", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{group.name}</div>
+            <div style={{ fontSize:13, color:"rgba(255,255,255,.6)", marginTop:4 }}>Leader: {group.leader || "—"}</div>
           </div>
-          <button
-            className="btn bg"
-            style={{ padding: "8px 12px", fontSize: 13, flexShrink: 0, display: "flex", alignItems: "center", gap: 6 }}
-            onClick={() => { setEditGroupF({ name: group.name, leader: group.leader || "" }); setEditGroupModal(true); }}
-          >
-            <EditIco s={14} /> Edit
+          <button onClick={() => { setEditGroupF({ name: group.name, leader: group.leader || "" }); setEditGroupModal(true); }}
+            style={{
+              background:"rgba(255,255,255,.18)", border:"1px solid rgba(255,255,255,.25)",
+              color:"#fff", borderRadius:12, padding:"9px 13px", cursor:"pointer",
+              fontFamily:"'DM Sans',sans-serif", display:"inline-flex", alignItems:"center", gap:5, fontSize:12, flexShrink:0,
+            }}>
+            <EditIco s={13} /> Edit
           </button>
         </div>
       </div>
@@ -1107,13 +1131,23 @@ export default function Groups({ groups, addGroup, editGroup, removeGroup, membe
 
   return (
     <div className="page">
-      <div className="ph">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      <div style={{
+        background: "linear-gradient(150deg, #1a3a2a 0%, #2d5a42 55%, #1e4a34 100%)",
+        padding: "max(env(safe-area-inset-top,32px),32px) 20px 20px",
+        position: "relative", overflow: "hidden",
+      }}>
+        <div style={{ position:"absolute", top:-40, right:-30, width:160, height:160,
+          borderRadius:"50%", background:"rgba(255,255,255,.04)", pointerEvents:"none" }} />
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
           <div>
-            <h1>Groups</h1>
-            <p>{groups.length} active group{groups.length !== 1 ? "s" : ""}</p>
+            <div style={{ fontFamily:"'Playfair Display',serif", fontSize:26, fontWeight:700, color:"#fff" }}>Groups</div>
+            <div style={{ fontSize:13, color:"rgba(255,255,255,.6)", marginTop:4 }}>{groups.length} active group{groups.length !== 1 ? "s" : ""}</div>
           </div>
-          <button className="btn bp" onClick={() => setAddModal(true)}><PlusIco /> New Group</button>
+          <button className="btn" onClick={() => setAddModal(true)} style={{
+            background:"rgba(255,255,255,.18)", border:"1px solid rgba(255,255,255,.25)",
+            color:"#fff", borderRadius:12, padding:"10px 14px", cursor:"pointer",
+            fontFamily:"'DM Sans',sans-serif", display:"inline-flex", alignItems:"center", gap:6,
+          }}><PlusIco /> New</button>
         </div>
       </div>
 

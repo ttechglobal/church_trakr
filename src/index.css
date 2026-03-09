@@ -78,10 +78,10 @@ a { text-decoration: none !important; color: inherit; }
 
 /* ── Page layout ── */
 .page { padding-bottom: calc(var(--bnav-h) + env(safe-area-inset-bottom, 0px) + 24px); }
-.ph { padding: max(env(safe-area-inset-top, 24px), 24px) 16px 8px; }
+.ph { padding: max(env(safe-area-inset-top, 32px), 32px) 20px 6px; }
 .ph h1 { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; color: var(--brand); line-height: 1.2; }
 .ph p { color: var(--muted); font-size: 13px; margin-top: 3px; }
-.pc { padding: 12px 16px; }
+.pc { padding: 14px 20px; }
 
 /* ── Cards ── */
 .card { background: var(--surface); border-radius: var(--r); box-shadow: var(--sh); padding: 16px; }
@@ -250,12 +250,12 @@ select.fi { font-size: 15px; }
   .att-bot { left: 0; right: 0; }
 
   /* Tighter mobile page header */
-  .ph { padding: max(env(safe-area-inset-top, 20px), 20px) 16px 6px; }
+  .ph { padding: max(env(safe-area-inset-top, 26px), 26px) 18px 4px; }
   .ph h1 { font-size: 20px; }
   .ph p { font-size: 12px; margin-top: 2px; }
 
   /* Tighter page content spacing */
-  .pc { padding: 10px 14px; }
+  .pc { padding: 12px 16px; }
   .sgrid { padding: 10px 14px; gap: 8px; }
   .sc { padding: 12px; }
   .sval { font-size: 22px; }
@@ -315,8 +315,8 @@ select.fi { font-size: 15px; }
   .li:hover { border-color: var(--border); transform: translateX(1px); }
   .upz:hover { border-color: var(--brand-light); background: #f5faf7; }
   .tab-wrap { padding: 0 20px 12px; }
-  .ph { padding: 28px 20px 8px; }
-  .pc { padding: 16px 20px; }
+  .ph { padding: 36px 28px 6px; }
+  .pc { padding: 16px 28px; }
   .sgrid { padding: 14px 20px; }
 }
 /* ── Very small screens ── */

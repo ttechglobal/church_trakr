@@ -169,9 +169,15 @@ export default function Analytics({ groups, members, attendanceHistory }) {
 
   return (
     <div className="page">
-      <div className="ph">
-        <h1>Analytics</h1>
-        <p>Attendance insights by month &amp; group</p>
+      <div style={{
+        background: "linear-gradient(150deg, #1a3a2a 0%, #2d5a42 55%, #1e4a34 100%)",
+        padding: "max(env(safe-area-inset-top,32px),32px) 20px 20px",
+        position: "relative", overflow: "hidden",
+      }}>
+        <div style={{ position:"absolute", top:-40, right:-30, width:160, height:160,
+          borderRadius:"50%", background:"rgba(255,255,255,.04)", pointerEvents:"none" }} />
+        <div style={{ fontFamily:"'Playfair Display',serif", fontSize:26, fontWeight:700, color:"#fff" }}>Analytics</div>
+        <div style={{ fontSize:13, color:"rgba(255,255,255,.6)", marginTop:4 }}>Attendance insights by month & group</div>
       </div>
 
       <div className="pc">

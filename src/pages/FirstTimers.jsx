@@ -414,17 +414,33 @@ export default function FirstTimers({
   // ── Main list ─────────────────────────────────────────────────────────────
   return (
     <div className="page">
-      <div className="ph">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      <div style={{
+        background: "linear-gradient(150deg, #1a3a2a 0%, #2d5a42 55%, #1e4a34 100%)",
+        padding: "max(env(safe-area-inset-top,32px),32px) 20px 20px",
+        position: "relative", overflow: "hidden",
+      }}>
+        <div style={{ position:"absolute", top:-40, right:-30, width:160, height:160,
+          borderRadius:"50%", background:"rgba(255,255,255,.04)", pointerEvents:"none" }} />
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
           <div>
-            <h1>First Timers</h1>
-            <p>{firstTimers.length} recorded · {needsFollowUp.length} need follow-up</p>
+            <div style={{ fontFamily:"'Playfair Display',serif", fontSize:26, fontWeight:700, color:"#fff" }}>First Timers</div>
+            <div style={{ fontSize:13, color:"rgba(255,255,255,.6)", marginTop:4 }}>
+              {firstTimers.length} recorded · {needsFollowUp.length} need follow-up
+            </div>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display:"flex", gap:8 }}>
             {enriched.length > 0 && (
-              <button className="btn bg" style={{ fontSize: 13, padding: "8px 14px", display: "flex", alignItems: "center", gap: 6 }} onClick={() => setSmsAll(true)}>💬 Send SMS</button>
+              <button className="btn" onClick={() => setSmsAll(true)} style={{
+                background:"rgba(255,255,255,.18)", border:"1px solid rgba(255,255,255,.25)",
+                color:"#fff", borderRadius:12, padding:"10px 14px", cursor:"pointer",
+                fontFamily:"'DM Sans',sans-serif", display:"inline-flex", alignItems:"center", gap:6, fontSize:13,
+              }}>💬 SMS</button>
             )}
-            <button className="btn bp" onClick={() => setAddModal(true)}><PlusIco s={16} /> Add</button>
+            <button className="btn" onClick={() => setAddModal(true)} style={{
+              background:"rgba(255,255,255,.18)", border:"1px solid rgba(255,255,255,.25)",
+              color:"#fff", borderRadius:12, padding:"10px 14px", cursor:"pointer",
+              fontFamily:"'DM Sans',sans-serif", display:"inline-flex", alignItems:"center", gap:6,
+            }}><PlusIco s={16} /> Add</button>
           </div>
         </div>
       </div>

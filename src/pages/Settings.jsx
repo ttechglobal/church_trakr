@@ -273,6 +273,79 @@ function ChangePasswordModal({ onClose, showToast }) {
 }
 
 // ── Main Settings Page ────────────────────────────────────────────────────────
+
+// ── Contact Support Modal ─────────────────────────────────────────────────────
+const WHATSAPP_SUPPORT = "2348050340350";
+
+function SupportModal({ church, onClose, showToast }) {
+  const [msg,     setMsg]     = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent,    setSent]    = useState(false);
+
+  const handleSend = async () => {
+    if (!msg.trim()) { showToast("Please write a message"); return; }
+    setSending(true);
+    const { error } = await supabase.from("support_messages").insert({
+      church_id: church?.id || null,
+      message:   msg.trim(),
+    });
+    setSending(false);
+    if (error) { showToast("Failed to send — please use WhatsApp ❌"); return; }
+    setSent(true);
+    showToast("Message sent! ✅");
+  };
+
+  const waText = encodeURIComponent(
+    `Hi ChurchTrackr Support!\n\nChurch: ${church?.name || "—"}\nAdmin: ${church?.admin_name || "—"}\nPhone: ${church?.phone || "—"}\n\nMessage:\n${msg}`
+  );
+
+  return (
+    <Modal title="Contact Support" onClose={onClose}>
+      <div className="fstack">
+        {sent ? (
+          <div style={{ textAlign: "center", padding: "12px 0" }}>
+            <div style={{ fontSize: 44, marginBottom: 12 }}>✅</div>
+            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>Message sent!</div>
+            <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 20 }}>
+              We'll get back to you soon via WhatsApp or email.
+            </div>
+            <button className="btn bg" style={{ width: "100%" }} onClick={onClose}>Close</button>
+          </div>
+        ) : (
+          <>
+            <div style={{ background: "var(--surface2)", borderRadius: 12, padding: "12px 14px",
+              fontSize: 13, color: "var(--muted)" }}>
+              <div style={{ fontWeight: 600, color: "var(--text)", marginBottom: 4 }}>
+                {church?.name || "Your church"}
+              </div>
+              <div>{church?.admin_name || ""} {church?.phone ? `· ${church.phone}` : ""}</div>
+            </div>
+            <div className="fg">
+              <label className="fl">Your message</label>
+              <textarea className="fi" rows={4} value={msg} onChange={e => setMsg(e.target.value)}
+                placeholder="Describe your issue or question…"
+                style={{ resize: "vertical", minHeight: 110 }} />
+            </div>
+            <button className="btn bp blg" onClick={handleSend} disabled={sending || !msg.trim()}>
+              {sending ? "Sending…" : "Send Message"}
+            </button>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>or chat directly on WhatsApp</div>
+              <a href={`https://wa.me/${WHATSAPP_SUPPORT}?text=${waText}`}
+                target="_blank" rel="noreferrer"
+                style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#128c5e",
+                  color: "#fff", padding: "12px 24px", borderRadius: 12, fontWeight: 700, fontSize: 14,
+                  textDecoration: "none" }}>
+                💚 Open WhatsApp
+              </a>
+            </div>
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 export default function Settings({ showToast }) {
   const { signOut, church, user, updateChurch } = useAuth();
   const navigate = useNavigate();
@@ -297,9 +370,15 @@ export default function Settings({ showToast }) {
 
   return (
     <div className="page">
-      <div className="ph">
-        <h1>Settings</h1>
-        <p>Manage your church account</p>
+      <div style={{
+        background: "linear-gradient(150deg, #1a3a2a 0%, #2d5a42 55%, #1e4a34 100%)",
+        padding: "max(env(safe-area-inset-top,32px),32px) 20px 20px",
+        position: "relative", overflow: "hidden",
+      }}>
+        <div style={{ position:"absolute", top:-40, right:-30, width:160, height:160,
+          borderRadius:"50%", background:"rgba(255,255,255,.04)", pointerEvents:"none" }} />
+        <div style={{ fontFamily:"'Playfair Display',serif", fontSize:26, fontWeight:700, color:"#fff" }}>Settings</div>
+        <div style={{ fontSize:13, color:"rgba(255,255,255,.6)", marginTop:4 }}>Manage your church account</div>
       </div>
 
       <div className="pc">
@@ -386,6 +465,21 @@ export default function Settings({ showToast }) {
                 </div>
               </div>
             </div>
+
+            {/* ── SUPPORT section ── */}
+            <div className="st-label" style={{ marginTop: 4 }}>SUPPORT</div>
+            <div className="stsec" style={{ marginBottom: 32 }}>
+              <div className="strow" onClick={() => setModal("support")}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div className="st-ico" style={{ background: "#e0f2fe" }}>💬</div>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>Contact Support</div>
+                    <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 1 }}>Send a message or chat on WhatsApp</div>
+                  </div>
+                </div>
+                <ChevR />
+              </div>
+            </div>
           </>
         )}
       </div>
@@ -393,6 +487,7 @@ export default function Settings({ showToast }) {
       {modal === "profile"  && <ChurchProfileModal church={church} onClose={() => setModal(null)} onSave={handleSaveChurch} />}
       {modal === "sms"      && <SmsSettingsModal church={church} onClose={() => setModal(null)} onSave={async (u) => { const { error } = await updateChurch(u); return { error }; }} showToast={showToast} />}
       {modal === "password" && <ChangePasswordModal onClose={() => setModal(null)} showToast={showToast} />}
+      {modal === "support"  && <SupportModal church={church} onClose={() => setModal(null)} showToast={showToast} />}
     </div>
   );
 }

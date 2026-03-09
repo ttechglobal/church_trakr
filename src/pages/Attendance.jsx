@@ -1,89 +1,203 @@
 // src/pages/Attendance.jsx
 import { useState } from "react";
-import { Modal } from "../components/ui/Modal";
 import { fmtDate } from "../lib/helpers";
 import { ChevL, ChevR } from "../components/ui/Icons";
 
-function SessionSummary({ session, group, onBack, onContinueMarking, showToast }) {
+// ── Design tokens ─────────────────────────────────────────────────────────────
+const T = {
+  forest:    "#1a3a2a",
+  forestMid: "#2d5a42",
+  forestDim: "#1e4a34",
+  green:     "#16a34a",
+  greenSoft: "#dcfce7",
+  red:       "#dc2626",
+  redSoft:   "#fef2f2",
+  redBorder: "#fecaca",
+  ivory:     "#fafaf8",
+  warm:      "#f5f4f0",
+  muted:     "#9ca3af",
+  border:    "#e8e6e1",
+  text:      "#1c1917",
+  serif:     "'Playfair Display', Georgia, serif",
+  sans:      "'DM Sans', sans-serif",
+};
+
+const rateColor = r => r >= 80 ? T.green : r >= 60 ? "#d97706" : T.red;
+
+// ── Reusable luxury back button (text-only, minimal) ─────────────────────────
+const BackBtn = ({ label = "Back", onClick, light = false }) => (
+  <button onClick={onClick} style={{
+    background: light ? "rgba(255,255,255,.12)" : "none",
+    border: light ? "1px solid rgba(255,255,255,.2)" : "none",
+    color: light ? "rgba(255,255,255,.8)" : T.muted,
+    cursor: "pointer", padding: light ? "7px 14px" : "6px 0",
+    display: "inline-flex", alignItems: "center", gap: 6,
+    fontFamily: T.sans, fontWeight: 500, fontSize: 13,
+    borderRadius: light ? 10 : 0, letterSpacing: ".02em",
+  }}>
+    <svg width="6" height="11" viewBox="0 0 6 11" fill="none">
+      <path d="M5 1L1 5.5L5 10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+    {label}
+  </button>
+);
+
+// ── Luxury gradient header ────────────────────────────────────────────────────
+const GreenHeader = ({ children }) => (
+  <div style={{
+    background: `linear-gradient(150deg, ${T.forest} 0%, ${T.forestMid} 60%, ${T.forestDim} 100%)`,
+    padding: "max(env(safe-area-inset-top,32px),32px) 24px 24px",
+    position: "relative", overflow: "hidden",
+  }}>
+    {/* Subtle texture orb */}
+    <div style={{ position:"absolute", top:-60, right:-40, width:200, height:200,
+      borderRadius:"50%", background:"rgba(255,255,255,.03)", pointerEvents:"none" }} />
+    <div style={{ position:"absolute", bottom:-30, left:-20, width:120, height:120,
+      borderRadius:"50%", background:"rgba(255,255,255,.02)", pointerEvents:"none" }} />
+    {children}
+  </div>
+);
+
+// ── Session Summary ───────────────────────────────────────────────────────────
+function SessionSummary({ session, group, onBack, onContinueMarking }) {
   const recs       = session.records;
   const presentCnt = recs.filter(r => r.present === true).length;
   const absentCnt  = recs.filter(r => r.present === false).length;
   const absentList = recs.filter(r => r.present === false);
   const rate       = recs.length ? Math.round((presentCnt / recs.length) * 100) : 0;
+  const rc         = rateColor(rate);
 
   return (
-    <div className="page">
-      <div className="ph">
-        <button className="btn bg" style={{ marginBottom: 14 }} onClick={onBack}><ChevL /> Back</button>
-        <h1>Summary</h1>
-        <p>{group?.name} · {fmtDate(session.date)}</p>
-      </div>
-      <div className="pc">
-        {/* Stats */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 20 }}>
-          {[["Total", recs.length, "var(--brand)"], ["Present", presentCnt, "var(--success)"], ["Absent", absentCnt, "var(--danger)"]].map(([l, v, c]) => (
-            <div key={l} style={{ background: "var(--surface)", borderRadius: 14, padding: "14px 10px", textAlign: "center", border: "1.5px solid var(--border)" }}>
-              <div style={{ fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: 30, color: c }}>{v}</div>
-              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>{l}</div>
+    <div className="page" style={{ background: T.ivory, minHeight:"100vh" }}>
+      <GreenHeader>
+        <BackBtn label="Back" onClick={onBack} light />
+
+        <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between", marginTop:14 }}>
+          <div>
+            <div style={{ fontFamily: T.serif, fontSize:22, fontWeight:700, color:"#fff",
+              letterSpacing:"-.01em" }}>Attendance Report</div>
+            <div style={{ fontSize:13, color:"rgba(255,255,255,.55)", marginTop:4,
+              fontFamily: T.sans }}>{group?.name} · {fmtDate(session.date)}</div>
+          </div>
+          {/* Rate ring */}
+          <div style={{ textAlign:"center", flexShrink:0 }}>
+            <div style={{ fontFamily: T.serif, fontSize:44, fontWeight:700, lineHeight:1,
+              color: rate >= 80 ? "#6ee7b7" : rate >= 60 ? "#fcd34d" : "#fca5a5" }}>{rate}%</div>
+            <div style={{ fontSize:10, color:"rgba(255,255,255,.4)", marginTop:3,
+              letterSpacing:".08em", textTransform:"uppercase", fontFamily: T.sans }}>attendance</div>
+          </div>
+        </div>
+
+        {/* Stat strip inside header */}
+        <div style={{ display:"flex", gap:10, marginTop:20 }}>
+          {[["Present", presentCnt, "#6ee7b7", "rgba(110,231,183,.1)"],
+            ["Absent",  absentCnt,  "#fca5a5", "rgba(252,165,165,.1)"],
+            ["Total",   recs.length,"rgba(255,255,255,.45)","rgba(255,255,255,.06)"]
+          ].map(([l, v, col, bg]) => (
+            <div key={l} style={{ flex:1, background:bg, borderRadius:12,
+              padding:"12px 8px", textAlign:"center",
+              border:"1px solid rgba(255,255,255,.07)" }}>
+              <div style={{ fontFamily: T.serif, fontWeight:700, fontSize:22,
+                color:col, lineHeight:1 }}>{v}</div>
+              <div style={{ fontSize:10, color:col, fontWeight:600, marginTop:4,
+                opacity:0.75, letterSpacing:".04em", textTransform:"uppercase",
+                fontFamily: T.sans }}>{l}</div>
             </div>
           ))}
         </div>
+      </GreenHeader>
 
-        {/* Attendance bar */}
-        <div style={{ marginBottom: 20 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-            <span style={{ fontSize: 13, color: "var(--muted)" }}>Attendance rate</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: rate >= 70 ? "var(--success)" : rate >= 50 ? "var(--accent)" : "var(--danger)" }}>{rate}%</span>
-          </div>
-          <div style={{ background: "var(--surface2)", borderRadius: 12, overflow: "hidden", height: 10 }}>
-            <div style={{ width: `${rate}%`, height: "100%", background: `linear-gradient(90deg, ${rate >= 70 ? "var(--success), #5ad98a" : rate >= 50 ? "var(--accent), #f5c842" : "var(--danger), #f87171"})`, borderRadius: 12, transition: "width .8s" }} />
-          </div>
+      <div style={{ padding:"20px 20px 32px" }}>
+        {/* Action buttons — at the top */}
+        <div style={{ display:"flex", gap:10, marginBottom:24 }}>
+          {onContinueMarking && (
+            <button onClick={onContinueMarking} style={{
+              flex:1, padding:"14px 10px", borderRadius:14,
+              background:"#fff", border:`1.5px solid ${T.border}`,
+              fontFamily: T.sans, fontWeight:700, fontSize:14,
+              color: T.text, cursor:"pointer",
+              boxShadow:"0 1px 4px rgba(0,0,0,.05)",
+            }}>Edit Attendance</button>
+          )}
+          <button onClick={onBack} style={{
+            flex:1, padding:"14px 10px", borderRadius:14,
+            background: T.forest, border:"none",
+            fontFamily: T.sans, fontWeight:700, fontSize:14,
+            color:"#fff", cursor:"pointer",
+            boxShadow:`0 4px 16px rgba(26,58,42,.3)`,
+          }}>Done</button>
         </div>
 
-        {/* Absentees */}
+        {/* Absent */}
         {absentList.length > 0 ? (
-          <div style={{ background: "var(--surface)", borderRadius: 16, border: "1.5px solid var(--border)", marginBottom: 16, overflow: "hidden" }}>
-            <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontWeight: 700, fontSize: 15 }}>Absent ({absentList.length})</div>
+          <div style={{ background:"#fff", borderRadius:18, overflow:"hidden",
+            border:`1px solid ${T.border}`, marginBottom:14,
+            boxShadow:"0 1px 6px rgba(0,0,0,.04)" }}>
+            <div style={{ padding:"14px 18px", borderBottom:`1px solid ${T.border}`,
+              display:"flex", alignItems:"center", gap:8 }}>
+              <div style={{ width:8, height:8, borderRadius:"50%",
+                background: T.red, flexShrink:0 }} />
+              <div style={{ fontFamily: T.sans, fontWeight:700, fontSize:13,
+                color: T.red, letterSpacing:".02em",
+                textTransform:"uppercase" }}>Absent · {absentList.length}</div>
             </div>
             {absentList.map((r, i) => (
-              <div key={r.memberId} style={{ padding: "12px 16px", borderBottom: i < absentList.length - 1 ? "1px solid var(--border)" : "none", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div style={{ fontWeight: 600, fontSize: 14 }}>{r.name}</div>
-                <span style={{ background: "#fce8e8", color: "var(--danger)", fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20 }}>Absent</span>
+              <div key={r.memberId} style={{
+                padding:"14px 18px",
+                borderBottom: i < absentList.length - 1 ? `1px solid ${T.border}` : "none",
+                display:"flex", alignItems:"center", justifyContent:"space-between",
+              }}>
+                <div style={{ fontWeight:600, fontSize:14, fontFamily: T.sans,
+                  color: T.text }}>{r.name}</div>
+                <div style={{ width:6, height:6, borderRadius:"50%",
+                  background: T.red, opacity:0.6 }} />
               </div>
             ))}
           </div>
         ) : (
-          <div style={{ textAlign: "center", padding: "24px 0", background: "#f0fdf6", borderRadius: 14, marginBottom: 16 }}>
-            <div style={{ fontSize: 44 }}>🎉</div>
-            <div style={{ fontWeight: 700, color: "var(--success)", marginTop: 10, fontSize: 18 }}>Full attendance!</div>
+          <div style={{ background: T.greenSoft, borderRadius:18, padding:"28px 20px",
+            textAlign:"center", marginBottom:14,
+            border:`1px solid rgba(22,163,74,.15)` }}>
+            <div style={{ fontSize:36, marginBottom:10 }}>✦</div>
+            <div style={{ fontFamily: T.serif, fontWeight:700, color: T.green,
+              fontSize:18 }}>Full attendance</div>
+            <div style={{ fontSize:13, color: T.green, marginTop:4,
+              opacity:0.7, fontFamily: T.sans }}>Everyone was present</div>
           </div>
         )}
 
-        {/* Present list */}
+        {/* Present */}
         {presentCnt > 0 && (
-          <div style={{ background: "var(--surface)", borderRadius: 16, border: "1.5px solid var(--border)", marginBottom: 16, overflow: "hidden" }}>
-            <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
-              <div style={{ fontWeight: 700, fontSize: 15 }}>Present ({presentCnt})</div>
+          <div style={{ background:"#fff", borderRadius:18, overflow:"hidden",
+            border:`1px solid ${T.border}`, boxShadow:"0 1px 6px rgba(0,0,0,.04)" }}>
+            <div style={{ padding:"14px 18px", borderBottom:`1px solid ${T.border}`,
+              display:"flex", alignItems:"center", gap:8 }}>
+              <div style={{ width:8, height:8, borderRadius:"50%",
+                background: T.green, flexShrink:0 }} />
+              <div style={{ fontFamily: T.sans, fontWeight:700, fontSize:13,
+                color: T.green, letterSpacing:".02em",
+                textTransform:"uppercase" }}>Present · {presentCnt}</div>
             </div>
             {recs.filter(r => r.present === true).map((r, i, arr) => (
-              <div key={r.memberId} style={{ padding: "12px 16px", borderBottom: i < arr.length - 1 ? "1px solid var(--border)" : "none", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div style={{ fontWeight: 600, fontSize: 14 }}>{r.name}</div>
-                <span style={{ background: "#d4f1e4", color: "#1a6640", fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20 }}>Present</span>
+              <div key={r.memberId} style={{
+                padding:"14px 18px",
+                borderBottom: i < arr.length - 1 ? `1px solid ${T.border}` : "none",
+                display:"flex", alignItems:"center", justifyContent:"space-between",
+              }}>
+                <div style={{ fontWeight:500, fontSize:14, fontFamily: T.sans,
+                  color: T.text }}>{r.name}</div>
+                <div style={{ width:6, height:6, borderRadius:"50%",
+                  background: T.green, opacity:0.5 }} />
               </div>
             ))}
           </div>
         )}
-
-        <div style={{ display: "flex", gap: 10 }}>
-          {onContinueMarking && <button className="btn bg" style={{ flex: 1 }} onClick={onContinueMarking}>✏️ Edit</button>}
-          <button className="btn bp" style={{ flex: 1 }} onClick={onBack}>Done</button>
-        </div>
       </div>
     </div>
   );
 }
 
+// ── Retry helper ─────────────────────────────────────────────────────────────
 async function withRetry(fn, maxAttempts = 3, delayMs = 800) {
   let lastError;
   for (let i = 0; i < maxAttempts; i++) {
@@ -102,6 +216,7 @@ async function withRetry(fn, maxAttempts = 3, delayMs = 800) {
   return { data: null, error: lastError };
 }
 
+// ── Main ──────────────────────────────────────────────────────────────────────
 export default function Attendance({ groups, members, attendanceHistory, saveAttendance, showToast }) {
   const [step,             setStep]             = useState("group");
   const [selGrp,           setSelGrp]           = useState(null);
@@ -112,7 +227,10 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
   const [saving,           setSaving]           = useState(false);
   const [saveErr,          setSaveErr]          = useState("");
 
-  const startMarking = (g) => { setSelGrp(g); setStep("date"); };
+  const startMarking   = (g) => { setSelGrp(g); setStep("date"); };
+  const togglePresent  = (id) => setRecs(rs => rs.map(r => r.memberId === id ? { ...r, present: !r.present } : r));
+  const presentCnt     = recs.filter(r => r.present === true).length;
+  const absentCnt      = recs.filter(r => r.present === false).length;
 
   const proceedFromDate = () => {
     setSaveErr("");
@@ -128,47 +246,27 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
     setStep("mark");
   };
 
-  const toggleAbsent = (id) =>
-    setRecs(rs => rs.map(r => r.memberId === id ? { ...r, present: !r.present } : r));
-
-  const markAll = (present) => setRecs(rs => rs.map(r => ({ ...r, present })));
-
-  const presentCnt = recs.filter(r => r.present === true).length;
-  const absentCnt  = recs.filter(r => r.present === false).length;
-
-
   const save = async () => {
-    setSaveErr("");
-    setSaving(true);
+    setSaveErr(""); setSaving(true);
     try {
-      const session = {
-        id:      editingSessionId || undefined,
-        groupId: selGrp.id,
-        date:    selDate,
-        records: recs.map(r => ({ ...r })),
-      };
+      const session = { id: editingSessionId || undefined, groupId: selGrp.id, date: selDate, records: recs.map(r => ({ ...r })) };
       const { data, error } = await withRetry(() => saveAttendance(session));
-      if (error) {
-        setSaveErr(error?.message || "Unknown error");
-        showToast("Save failed — tap Retry ❌");
-        return;
-      }
+      if (error) { setSaveErr(error?.message || "Unknown error"); showToast("Save failed ❌"); return; }
       const savedId = data?.id || editingSessionId;
       if (!editingSessionId && savedId) setEditingSessionId(savedId);
-      showToast("Attendance saved! ✅");
+      showToast("Attendance saved ✅");
       setStep("summary");
     } catch (e) {
       setSaveErr(e?.message || "Unexpected error");
-      showToast("Save failed — tap Retry ❌");
-    } finally {
-      setSaving(false);
-    }
+      showToast("Save failed ❌");
+    } finally { setSaving(false); }
   };
 
   const currentSession = editingSessionId
     ? attendanceHistory.find(s => s.id === editingSessionId) || { id: editingSessionId, groupId: selGrp?.id, date: selDate, records: recs }
     : { id: null, groupId: selGrp?.id, date: selDate, records: recs };
 
+  // ── Viewing past session ─────────────────────────────────────────────────
   if (viewingSession) {
     const grp = groups.find(g => g.id === viewingSession.groupId);
     return (
@@ -180,42 +278,67 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
           setEditingSessionId(viewingSession.id);
           setViewingSession(null); setStep("mark");
         }}
-        showToast={showToast}
       />
     );
   }
 
-  // ── GROUP SELECTION ──────────────────────────────────────────────────────
+  // ── Step 1: Group selection ──────────────────────────────────────────────
   if (step === "group") return (
-    <div className="page">
-      <div className="ph"><h1>Attendance</h1><p>Select a group to mark</p></div>
-      <div className="pc">
+    <div className="page" style={{ background: T.ivory, minHeight:"100vh" }}>
+      <GreenHeader>
+        <div style={{ fontFamily: T.serif, fontSize:28, fontWeight:700, color:"#fff",
+          letterSpacing:"-.02em" }}>Attendance</div>
+        <div style={{ fontSize:13, color:"rgba(255,255,255,.5)", marginTop:5,
+          fontFamily: T.sans, letterSpacing:".01em" }}>Select a group to begin</div>
+      </GreenHeader>
+
+      <div style={{ padding:"20px 20px 32px" }}>
         {groups.length === 0 && (
           <div className="empty"><div className="empty-ico">👥</div><p>No groups yet. Create one in Groups.</p></div>
         )}
         {groups.map(g => {
           const cnt = members.filter(m => (m.groupIds || []).includes(g.id)).length;
-          const lastSess = [...attendanceHistory].filter(h => h.groupId === g.id).sort((a, b) => b.date.localeCompare(a.date))[0];
+          const lastSess = [...attendanceHistory].filter(h => h.groupId === g.id)
+            .sort((a, b) => b.date.localeCompare(a.date))[0];
           const rate = lastSess && lastSess.records.length
             ? Math.round((lastSess.records.filter(r => r.present).length / lastSess.records.length) * 100)
             : null;
           return (
-            <div key={g.id}
-              onClick={() => startMarking(g)}
-              style={{ display: "flex", alignItems: "center", gap: 14, background: "var(--surface)", border: "1.5px solid var(--border)", borderRadius: 16, padding: "16px", marginBottom: 10, cursor: "pointer" }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: 16 }}>{g.name}</div>
-                <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>
-                  {cnt} members{lastSess ? ` · Last: ${fmtDate(lastSess.date)}` : " · No sessions yet"}
+            <div key={g.id} onClick={() => startMarking(g)} style={{
+              display:"flex", alignItems:"center", gap:16,
+              background:"#fff", border:`1px solid ${T.border}`,
+              borderRadius:18, padding:"18px 20px", marginBottom:10,
+              cursor:"pointer", boxShadow:"0 1px 4px rgba(0,0,0,.04)",
+            }}>
+              {/* Group initial medallion */}
+              <div style={{
+                width:44, height:44, borderRadius:12, flexShrink:0,
+                background:`linear-gradient(135deg, ${T.forestMid}, ${T.forest})`,
+                display:"flex", alignItems:"center", justifyContent:"center",
+                fontFamily: T.serif, fontWeight:700, fontSize:18, color:"rgba(255,255,255,.85)",
+              }}>{g.name.charAt(0)}</div>
+
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontWeight:700, fontSize:16, fontFamily: T.sans,
+                  color: T.text, letterSpacing:"-.01em" }}>{g.name}</div>
+                <div style={{ fontSize:12, color: T.muted, marginTop:3,
+                  fontFamily: T.sans }}>
+                  {cnt} member{cnt !== 1 ? "s" : ""}
+                  {lastSess ? ` · ${fmtDate(lastSess.date)}` : " · No sessions yet"}
                 </div>
               </div>
+
               {rate !== null && (
-                <div style={{ textAlign: "center", flexShrink: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 18, color: rate >= 70 ? "var(--success)" : rate >= 50 ? "var(--accent)" : "var(--danger)" }}>{rate}%</div>
-                  <div style={{ fontSize: 10, color: "var(--muted)" }}>last</div>
+                <div style={{ textAlign:"right", flexShrink:0 }}>
+                  <div style={{ fontFamily: T.serif, fontWeight:700, fontSize:18,
+                    color:rateColor(rate) }}>{rate}%</div>
+                  <div style={{ fontSize:10, color: T.muted, letterSpacing:".04em",
+                    textTransform:"uppercase", fontFamily: T.sans, marginTop:1 }}>last</div>
                 </div>
               )}
-              <ChevR />
+              <svg width="6" height="11" viewBox="0 0 6 11" fill="none" style={{ opacity:0.25, flexShrink:0 }}>
+                <path d="M1 1l4 4.5L1 10" stroke={T.text} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
             </div>
           );
         })}
@@ -223,7 +346,7 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
     </div>
   );
 
-  // ── DATE SELECTION ───────────────────────────────────────────────────────
+  // ── Step 2: Date selection ───────────────────────────────────────────────
   if (step === "date") {
     const sessForGrp = attendanceHistory.filter(h => h.groupId === selGrp.id);
     const selSess    = sessForGrp.find(s => s.date === selDate);
@@ -231,164 +354,257 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
     const lastSun = (() => { const d = new Date(); d.setDate(d.getDate() - d.getDay() - 7); return d.toISOString().split("T")[0]; })();
 
     return (
-      <div className="page">
-        <div className="ph">
-          <button className="btn bg" style={{ marginBottom: 14 }} onClick={() => setStep("group")}><ChevL /> All Groups</button>
-          <h1>{selGrp.name}</h1><p>Pick a date</p>
-        </div>
-        <div className="pc">
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+      <div className="page" style={{ background: T.ivory, minHeight:"100vh" }}>
+        <GreenHeader>
+          <BackBtn label="All Groups" onClick={() => setStep("group")} light />
+          <div style={{ fontFamily: T.serif, fontSize:24, fontWeight:700, color:"#fff",
+            letterSpacing:"-.01em", marginTop:14 }}>{selGrp.name}</div>
+          <div style={{ fontSize:13, color:"rgba(255,255,255,.5)", marginTop:4,
+            fontFamily: T.sans }}>Choose a date to mark</div>
+        </GreenHeader>
+
+        <div style={{ padding:"20px 20px 32px" }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:18 }}>
             {[thisSun, lastSun].map((d, i) => {
-              const s = sessForGrp.find(x => x.date === d);
+              const s   = sessForGrp.find(x => x.date === d);
               const sel = selDate === d;
               return (
-                <div key={d} onClick={() => setSelDate(d)} style={{ padding: "16px 12px", borderRadius: 14, cursor: "pointer", textAlign: "center", background: sel ? "var(--brand)" : "var(--surface)", color: sel ? "#fff" : "var(--text)", border: `2px solid ${sel ? "var(--brand)" : s ? "var(--success)" : "var(--border)"}`, transition: "all .12s" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.7, marginBottom: 4, textTransform: "uppercase" }}>{i === 0 ? "This Sunday" : "Last Sunday"}</div>
-                  <div style={{ fontWeight: 700, fontSize: 15 }}>{fmtDate(d)}</div>
-                  {s  && <div style={{ fontSize: 11, marginTop: 4, color: sel ? "rgba(255,255,255,.8)" : "var(--success)", fontWeight: 600 }}>✓ {s.records.filter(r => r.present).length}/{s.records.length}</div>}
-                  {!s && <div style={{ fontSize: 11, marginTop: 4, opacity: 0.5 }}>Not marked</div>}
+                <div key={d} onClick={() => setSelDate(d)} style={{
+                  padding:"18px 14px", borderRadius:16, cursor:"pointer", textAlign:"center",
+                  background: sel ? T.forest : "#fff",
+                  color: sel ? "#fff" : T.text,
+                  border:`1.5px solid ${sel ? T.forest : s ? T.green : T.border}`,
+                  boxShadow: sel ? `0 4px 18px rgba(26,58,42,.25)` : "0 1px 4px rgba(0,0,0,.04)",
+                  transition:"all .18s",
+                }}>
+                  <div style={{ fontSize:10, fontWeight:700, opacity:0.6, marginBottom:6,
+                    textTransform:"uppercase", letterSpacing:".08em", fontFamily: T.sans }}>
+                    {i === 0 ? "This Sunday" : "Last Sunday"}
+                  </div>
+                  <div style={{ fontFamily: T.serif, fontWeight:700, fontSize:16 }}>{fmtDate(d)}</div>
+                  {s  && <div style={{ fontSize:11, marginTop:6, fontWeight:600, fontFamily: T.sans,
+                    color: sel ? "rgba(255,255,255,.7)" : T.green }}>
+                    ✓ {s.records.filter(r => r.present).length}/{s.records.length}
+                  </div>}
+                  {!s && <div style={{ fontSize:11, marginTop:6, opacity:0.4,
+                    fontFamily: T.sans }}>Not marked yet</div>}
                 </div>
               );
             })}
           </div>
 
-          <div className="fg" style={{ marginBottom: 16 }}>
-            <label className="fl">Or pick a different date</label>
-            <input className="fi" type="date" value={selDate} onChange={e => setSelDate(e.target.value)} />
+          <div style={{ marginBottom:18 }}>
+            <div style={{ fontSize:11, color: T.muted, fontFamily: T.sans,
+              letterSpacing:".05em", textTransform:"uppercase", fontWeight:600,
+              marginBottom:8 }}>Or choose a date</div>
+            <input type="date" value={selDate} onChange={e => setSelDate(e.target.value)}
+              style={{
+                width:"100%", padding:"13px 16px", borderRadius:12, fontSize:14,
+                fontFamily: T.sans, fontWeight:500, color: T.text,
+                background:"#fff", border:`1px solid ${T.border}`,
+                boxSizing:"border-box", outline:"none",
+              }} />
           </div>
 
           {selSess ? (
-            <div style={{ background: "#fff8e6", border: "1.5px solid var(--accent)", borderRadius: 12, padding: "14px", marginBottom: 16 }}>
-              <div style={{ fontWeight: 700, fontSize: 14, color: "#8a5a00", marginBottom: 4 }}>⚡ Already recorded</div>
-              <div style={{ fontSize: 13, color: "#8a5a00" }}>{selSess.records.filter(r => r.present).length} present · {selSess.records.filter(r => !r.present).length} absent</div>
-              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                <button className="btn bg" style={{ flex: 1, fontSize: 13 }} onClick={() => setViewingSession(selSess)}>👁 View</button>
-                <button className="btn ba" style={{ flex: 1, fontSize: 13 }} onClick={proceedFromDate}>✏️ Edit</button>
+            <div style={{ background:"#fffbeb", border:`1px solid #fde68a`,
+              borderRadius:16, padding:"16px 18px", marginBottom:4 }}>
+              <div style={{ fontWeight:700, fontSize:13, color:"#92400e",
+                fontFamily: T.sans, marginBottom:4, letterSpacing:".01em" }}>
+                Already recorded for this date
+              </div>
+              <div style={{ fontSize:13, color:"#92400e", fontFamily: T.sans, opacity:0.8 }}>
+                {selSess.records.filter(r => r.present).length} present
+                · {selSess.records.filter(r => !r.present).length} absent
+              </div>
+              <div style={{ display:"flex", gap:8, marginTop:14 }}>
+                <button onClick={() => setViewingSession(selSess)} style={{
+                  flex:1, padding:"12px", borderRadius:12, background:"#fff",
+                  border:`1px solid #fde68a`, fontFamily: T.sans, fontWeight:600,
+                  fontSize:13, color:"#92400e", cursor:"pointer",
+                }}>View</button>
+                <button onClick={proceedFromDate} style={{
+                  flex:1, padding:"12px", borderRadius:12, background:T.forest,
+                  border:"none", fontFamily: T.sans, fontWeight:700,
+                  fontSize:13, color:"#fff", cursor:"pointer",
+                }}>Edit</button>
               </div>
             </div>
           ) : (
-            <button className="btn bp blg" onClick={proceedFromDate}>Start Marking →</button>
+            <button onClick={proceedFromDate} style={{
+              width:"100%", padding:"17px", borderRadius:14,
+              background: T.forest, border:"none",
+              fontFamily: T.sans, fontWeight:700, fontSize:15,
+              color:"#fff", cursor:"pointer", letterSpacing:".01em",
+              boxShadow:`0 4px 18px rgba(26,58,42,.3)`,
+            }}>Begin Marking →</button>
           )}
         </div>
       </div>
     );
   }
 
-  // ── MARK ATTENDANCE ──────────────────────────────────────────────────────
-  if (step === "mark") return (
-    <div style={{ paddingBottom: 160 }}>
+  // ── Step 3: Mark attendance ──────────────────────────────────────────────
+  if (step === "mark") {
+    const pct      = recs.length ? Math.round((presentCnt / recs.length) * 100) : 0;
+    const barColor = pct >= 80 ? T.green : pct >= 60 ? "#d97706" : T.red;
 
-      {/* Sticky top bar */}
-      <div className="att-top">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <button className="btn bg" style={{ padding: "7px 12px", fontSize: 13 }} onClick={() => setStep("date")}>
-            <ChevL /> Back
-          </button>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontWeight: 700, fontSize: 14, color: "var(--brand)" }}>{selGrp.name}</div>
-            <div style={{ fontSize: 12, color: "var(--muted)" }}>{fmtDate(selDate)}</div>
-          </div>
-        </div>
+    return (
+      <div style={{ background: T.ivory, minHeight:"100vh", paddingBottom:110 }}>
 
-        {/* Instruction hint */}
-        <div style={{ fontSize: 12, color: "var(--muted)", textAlign: "center", marginBottom: 8, fontWeight: 500 }}>
-          Tap a name to mark absent (✗) or present (✓)
-        </div>
+        {/* ── Sticky header ── */}
+        <div className="att-top" style={{ background: T.ivory }}>
 
-        {/* Live counter */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-          <div style={{ flex: 1, background: "#f0fdf6", border: "1px solid #c3f0d8", borderRadius: 10, padding: "10px", textAlign: "center" }}>
-            <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 22, fontWeight: 700, color: "var(--success)" }}>{presentCnt}</div>
-            <div style={{ fontSize: 11, color: "var(--success)", fontWeight: 600 }}>Present</div>
-          </div>
-          <div style={{ flex: 1, background: absentCnt > 0 ? "#fff0f0" : "var(--surface2)", border: `1px solid ${absentCnt > 0 ? "#f5c8c8" : "var(--border)"}`, borderRadius: 10, padding: "10px", textAlign: "center" }}>
-            <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 22, fontWeight: 700, color: absentCnt > 0 ? "var(--danger)" : "var(--muted)" }}>{absentCnt}</div>
-            <div style={{ fontSize: 11, color: absentCnt > 0 ? "var(--danger)" : "var(--muted)", fontWeight: 600 }}>Absent</div>
-          </div>
-          <div style={{ flex: 1, background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px", textAlign: "center" }}>
-            <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 22, fontWeight: 700, color: "var(--muted)" }}>{recs.length}</div>
-            <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>Total</div>
-          </div>
-        </div>
-
-        {/* Mark all buttons */}
-        <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={() => markAll(true)}
-            style={{ flex: 1, background: "#f0fdf6", border: "1.5px solid var(--success)", borderRadius: 10, padding: "10px 8px", fontSize: 13, fontWeight: 700, color: "var(--success)", cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>
-            Mark All Present ✓
-          </button>
-          <button onClick={() => markAll(false)}
-            style={{ flex: 1, background: "#fff0f0", border: "1.5px solid var(--danger)", borderRadius: 10, padding: "10px 8px", fontSize: 13, fontWeight: 700, color: "var(--danger)", cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>
-            Mark All Absent ✗
-          </button>
-        </div>
-      </div>
-
-      {/* Member list */}
-      <div style={{ padding: "12px 16px" }}>
-        {recs.length === 0 && <div className="empty"><div className="empty-ico">👥</div><p>No members in this group.</p></div>}
-
-        {recs.map(r => {
-          const isAbsent = r.present === false;
-          return (
-            <div
-              key={r.memberId}
-              onClick={() => toggleAbsent(r.memberId)}
-              style={{
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "14px 16px", borderRadius: 14, marginBottom: 8,
-                background: isAbsent ? "#fff0f0" : "var(--surface)",
-                border: `2px solid ${isAbsent ? "var(--danger)" : "var(--border)"}`,
-                cursor: "pointer", transition: "background .1s, border-color .1s", gap: 12,
-              }}>
-              {/* Name — wraps freely */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: 15, wordBreak: "break-word", lineHeight: 1.3 }}>{r.name}</div>
-              </div>
-
-              {/*
-                Toggle indicator:
-                - Present: soft green background, green checkmark → clearly "present"
-                - Absent:  red background, white X → clearly "absent"
-                Tapping flips. The muted-when-present style makes it obvious you can tap to mark absent.
-              */}
-              <div style={{
-                flexShrink: 0, width: 48, height: 48, borderRadius: 12,
-                background: isAbsent ? "var(--danger)" : "var(--surface2)",
-                border: `2px solid ${isAbsent ? "var(--danger)" : "var(--border)"}`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                transition: "all .12s",
-              }}>
-                {isAbsent
-                  ? <span style={{ color: "#fff", fontSize: 20, fontWeight: 900, lineHeight: 1 }}>✗</span>
-                  : <span style={{ color: "var(--success)", fontSize: 20, fontWeight: 900, lineHeight: 1 }}>✓</span>
-                }
-              </div>
+          {/* Nav */}
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+            <BackBtn label="Back" onClick={() => setStep("date")} />
+            <div style={{ textAlign:"right" }}>
+              <div style={{ fontWeight:700, fontSize:15, color: T.text,
+                fontFamily: T.sans, letterSpacing:"-.01em" }}>{selGrp.name}</div>
+              <div style={{ fontSize:12, color: T.muted, marginTop:1,
+                fontFamily: T.sans }}>{fmtDate(selDate)}</div>
             </div>
-          );
-        })}
-      </div>
-
-      {/* Save bar */}
-      <div className="att-bot">
-        {saveErr && (
-          <div style={{ background: "#fce8e8", borderRadius: 10, padding: "8px 12px", marginBottom: 10, fontSize: 12, color: "var(--danger)" }}>
-            ⚠️ {saveErr}
           </div>
-        )}
-        <button className="btn bp" style={{ width: "100%", borderRadius: 12, padding: "16px", fontSize: 16, fontWeight: 700 }}
-          onClick={save} disabled={saving}>
-          {saving ? "Saving…" : saveErr ? "🔄 Retry" : `Save Attendance · ${presentCnt} Present`}
-        </button>
-      </div>
-    </div>
-  );
 
+          {/* Stat strip */}
+          <div style={{
+            display:"flex", alignItems:"center",
+            background:"#fff", borderRadius:16, padding:"14px 22px",
+            border:`1px solid ${T.border}`,
+            boxShadow:"0 1px 6px rgba(0,0,0,.04)",
+            marginBottom:12,
+          }}>
+            <div style={{ flex:1 }}>
+              <div style={{ fontFamily: T.serif, fontWeight:700, fontSize:30,
+                color: T.green, lineHeight:1 }}>{presentCnt}</div>
+              <div style={{ fontSize:11, color: T.green, fontWeight:600, marginTop:3,
+                letterSpacing:".05em", textTransform:"uppercase", fontFamily: T.sans }}>Present</div>
+            </div>
+            <div style={{ width:1, height:36, background: T.border, flexShrink:0, margin:"0 20px" }} />
+            <div style={{ flex:1, textAlign:"right" }}>
+              <div style={{ fontFamily: T.serif, fontWeight:700, fontSize:30, lineHeight:1,
+                color: absentCnt > 0 ? T.red : T.muted,
+                transition:"color .2s" }}>{absentCnt}</div>
+              <div style={{ fontSize:11, fontWeight:600, marginTop:3,
+                letterSpacing:".05em", textTransform:"uppercase", fontFamily: T.sans,
+                color: absentCnt > 0 ? T.red : T.muted,
+                transition:"color .2s" }}>Absent</div>
+            </div>
+          </div>
+
+          {/* Progress bar */}
+          <div style={{ background: T.border, borderRadius:99, height:4, overflow:"hidden", marginBottom:7 }}>
+            <div style={{
+              width:`${pct}%`, height:"100%", borderRadius:99, background:barColor,
+              transition:"width .35s ease",
+            }} />
+          </div>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <span style={{ fontSize:12, color: T.muted, fontFamily: T.sans }}>
+              {recs.length} members · tap ✕ to mark absent
+            </span>
+            <span style={{ fontSize:12, fontWeight:700, color:barColor,
+              fontFamily: T.sans }}>{pct}%</span>
+          </div>
+        </div>
+
+        {/* ── Member list ── */}
+        <div style={{ padding:"10px 16px 0" }}>
+          {recs.length === 0 && (
+            <div className="empty"><div className="empty-ico">👥</div><p>No members in this group.</p></div>
+          )}
+
+          {recs.map((r, idx) => {
+            const isAbsent = r.present === false;
+            return (
+              <div key={r.memberId} style={{
+                display:"flex", alignItems:"center",
+                padding:"17px 18px", borderRadius:16, marginBottom:8,
+                background: isAbsent ? T.redSoft : "#fff",
+                border:`1px solid ${isAbsent ? T.redBorder : T.border}`,
+                gap:14, transition:"all .2s",
+                boxShadow: isAbsent
+                  ? "0 2px 10px rgba(220,38,38,.07)"
+                  : "0 1px 3px rgba(0,0,0,.03)",
+              }}>
+                {/* Row number — quiet, luxury detail */}
+                <div style={{
+                  flexShrink:0, width:22, textAlign:"right",
+                  fontFamily: T.sans, fontSize:11, color: T.muted,
+                  fontWeight:400, opacity:0.5, userSelect:"none",
+                }}>{idx + 1}</div>
+
+                {/* Name */}
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{
+                    fontWeight:600, fontSize:15, lineHeight:1.3,
+                    fontFamily: T.sans, letterSpacing:"-.01em",
+                    color: isAbsent ? T.red : T.text,
+                    transition:"color .2s",
+                  }}>{r.name}</div>
+                </div>
+
+                {/* The ✕ — elegant SVG cross, slightly rotated */}
+                <button
+                  onClick={() => togglePresent(r.memberId)}
+                  style={{
+                    flexShrink:0, width:36, height:36, borderRadius:10,
+                    border:`1.5px solid ${isAbsent ? T.red : "#e2e0da"}`,
+                    background: isAbsent ? T.red : "transparent",
+                    cursor:"pointer", display:"flex", alignItems:"center",
+                    justifyContent:"center", padding:0,
+                    transition:"all .2s",
+                  }}
+                  aria-label={isAbsent ? "Mark present" : "Mark absent"}
+                >
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none"
+                    style={{ transform:"rotate(5deg)" }}>
+                    <line x1="1" y1="1" x2="11" y2="11"
+                      stroke={isAbsent ? "#fff" : "#c8c4bb"}
+                      strokeWidth="2" strokeLinecap="round"/>
+                    <line x1="11" y1="1" x2="1" y2="11"
+                      stroke={isAbsent ? "#fff" : "#c8c4bb"}
+                      strokeWidth="2" strokeLinecap="round"/>
+                  </svg>
+                </button>
+              </div>
+            );
+          })}
+          <div style={{ height:16 }} />
+        </div>
+
+        {/* ── Save bar ── */}
+        <div className="att-bot" style={{ background: T.ivory, borderTop:`1px solid ${T.border}` }}>
+          {saveErr && (
+            <div style={{ background:"#fce8e8", borderRadius:10, padding:"9px 14px",
+              marginBottom:10, fontSize:12, color: T.red, fontFamily: T.sans }}>
+              ⚠ {saveErr}
+            </div>
+          )}
+          <button onClick={save} disabled={saving} style={{
+            width:"100%", borderRadius:14, padding:"17px",
+            fontSize:15, fontWeight:700, fontFamily: T.sans, letterSpacing:".01em",
+            background: saving ? T.forestMid : T.forest,
+            color:"#fff", border:"none",
+            cursor: saving ? "not-allowed" : "pointer",
+            opacity: saving ? 0.75 : 1,
+            boxShadow:`0 4px 18px rgba(26,58,42,.28)`,
+            transition:"opacity .2s",
+          }}>
+            {saving ? "Saving…" : saveErr
+              ? "Retry"
+              : `Save · ${presentCnt} present${absentCnt > 0 ? `, ${absentCnt} absent` : ""}`}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Step 4: Summary ──────────────────────────────────────────────────────
   if (step === "summary") return (
     <SessionSummary session={currentSession} group={selGrp}
       onBack={() => setStep("group")}
       onContinueMarking={() => { setSaveErr(""); setStep("mark"); }}
-      showToast={showToast}
     />
   );
 }
