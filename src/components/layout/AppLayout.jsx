@@ -43,7 +43,7 @@ export function AppLayout({ children }) {
       {/* ── Desktop Sidebar ── */}
       <nav className="sb">
         <div className="sb-logo" onClick={() => navigate("/")} style={{ cursor:"pointer" }}>
-          <h2>⛪ ChurchTrackr</h2>
+          <h2>⛪ ChurchTrakr</h2>
           <p>{church?.name ?? "Loading…"}</p>
         </div>
         <div className="sb-nav">

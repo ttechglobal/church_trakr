@@ -65,7 +65,7 @@ function Nav({ onLogin, onSignup }) {
           display:"flex", alignItems:"center", justifyContent:"center",
           fontFamily:F, fontWeight:700, fontSize:12, color:"#fff" }}>CT</div>
         <span style={{ fontFamily:F, fontWeight:700, fontSize:16, color:FOREST }}>
-          Church Tracker
+          ChurchTrakr
         </span>
       </div>
 
@@ -144,7 +144,7 @@ function Hero({ onSignup, onLogin }) {
           maxWidth:540, marginBottom:36,
           fontSize: isMobile ? "1rem" : "1.15rem",
         }}>
-          Church Tracker helps pastors and administrators mark attendance, track members,
+          ChurchTrakr helps pastors and administrators mark attendance, track members,
           follow up with absentees, and never lose a first-time visitor — all in one
           beautifully simple platform.
         </p>
@@ -336,7 +336,7 @@ function Solution() {
             One Platform.<br/>Complete Clarity.
           </h2>
           <p style={{ fontFamily:S, color:MUTED, lineHeight:1.8, fontSize:14.5, marginBottom:24 }}>
-            Church Tracker replaces scattered registers and forgotten spreadsheets with one
+            ChurchTrakr replaces scattered registers and forgotten spreadsheets with one
             intelligent, purpose-built platform. Mark attendance in seconds, reach out to
             absentees in one tap, and never lose a first-time visitor again.
           </p>
@@ -357,7 +357,7 @@ function Features() {
   const feats = [
     { icon:"📅", t:"Smart Attendance Tracking", d:"Mark attendance for any group in seconds. Scroll your list, tap to mark absent — everyone else is automatically present. Fast, intuitive, built for real Sunday mornings." },
     { icon:"🙌", t:"First-Timer Management", d:"Log new visitors during or after service. Capture their details and trigger an immediate personalised welcome. Turn a one-time visit into a lasting connection." },
-    { icon:"📡", t:"Absentee Detection", d:"Church Tracker automatically identifies members absent for consecutive Sundays. Send bulk SMS follow-up in one tap — no member should feel forgotten." },
+    { icon:"📡", t:"Absentee Detection", d:"ChurchTrakr automatically identifies members absent for consecutive Sundays. Send bulk SMS follow-up in one tap — no member should feel forgotten." },
     { icon:"💬", t:"SMS Messaging", d:"Reach your members where they already are. Target absentees, first-timers, or your entire congregation. One message, sent to many." },
     { icon:"📈", t:"Growth Insights", d:"See attendance trends over time. Understand which groups are growing and where follow-up is needed. Data-informed pastoral care, made simple." },
     { icon:"👥", t:"Member Records", d:"Every member, every group, every interaction in one secure searchable place. Organise into ministry groups and always find what you need." },
@@ -408,7 +408,7 @@ function HowItWorks({ onSignup }) {
     { n:"1", t:"Create Your Account", d:"Sign up in under 2 minutes. Enter your church name and details. No credit card required." },
     { n:"2", t:"Add Members & Groups", d:"Add your members and organise them into ministry groups — youth, choir, cells, departments." },
     { n:"3", t:"Mark Attendance", d:"Open the app before or after service. Select your group, scroll through members, tap once to mark." },
-    { n:"4", t:"Follow Up & Grow", d:"Send SMS to absentees. Welcome first-timers. Review weekly insights. Let Church Tracker handle the admin." },
+    { n:"4", t:"Follow Up & Grow", d:"Send SMS to absentees. Welcome first-timers. Review weekly insights. Let ChurchTrakr handle the admin." },
   ];
   return (
     <section style={{ background:FOREST, padding: isMobile ? "70px 20px" : "100px 24px",
@@ -496,7 +496,7 @@ function Story() {
         </div>
 
         <p style={{ fontFamily:S, color:MUTED, lineHeight:1.9, fontSize:15, marginBottom:18 }}>
-          Church Tracker was born from a real, painful observation — people were coming to church,
+          ChurchTrakr was born from a real, painful observation — people were coming to church,
           then quietly disappearing, and <strong style={{ color:TEXT }}>no one was reaching out.</strong> Not
           because they didn't care. But because there was no system. There was no structure.
           There was no way to even know who was missing.
@@ -511,7 +511,7 @@ function Story() {
           But here is what we discovered: <strong style={{ color:TEXT }}>when you reach out, people feel loved.</strong> A
           simple message — "We missed you this Sunday" — can be the thing that brings someone
           back. It tells them they were seen. That their presence mattered. That the church noticed
-          their absence. That is pastoral care. And Church Tracker exists to make it effortless.
+          their absence. That is pastoral care. And ChurchTrakr exists to make it effortless.
         </p>
 
         <div style={{
@@ -523,12 +523,12 @@ function Story() {
             fontFamily:F, fontSize:"5rem", fontWeight:900, color:GOLD, opacity:.18, lineHeight:1 }}>"</div>
           <p style={{ fontFamily:F, fontStyle:"italic", fontSize: isMobile ? "1.05rem" : "1.15rem",
             color:TEXT, lineHeight:1.7, paddingLeft:8, margin:0 }}>
-            We built Church Tracker because we believe every member who walks through those doors
+            We built ChurchTrakr because we believe every member who walks through those doors
             deserves to be seen — and every member who doesn't show up deserves to be missed.
             Not by chance. By design.
           </p>
           <div style={{ marginTop:20, fontFamily:S, fontSize:13, color:MUTED, fontWeight:600 }}>
-            — The Church Tracker Team
+            — The ChurchTrakr Team
           </div>
         </div>
       </div>
@@ -540,8 +540,8 @@ function Story() {
 /*
 function Testimonials() {
   const tests = [
-    { q:"Before Church Tracker, our attendance register was a notebook that went missing every other Sunday. Now our admin marks attendance before the closing prayer is finished. It changed everything.", name:"Pastor Philip Eze", role:"Senior Pastor · Grace Assembly, Lagos", init:"P" },
-    { q:"We had a first-timer in March who almost slipped through the cracks. Because of Church Tracker, we followed up with her the same week. She became a member a month later.", name:"Admin Sister Adaeze Nkemdirim", role:"Church Admin · Fountain of Life, Abuja", init:"A" },
+    { q:"Before ChurchTrakr, our attendance register was a notebook that went missing every other Sunday. Now our admin marks attendance before the closing prayer is finished. It changed everything.", name:"Pastor Philip Eze", role:"Senior Pastor · Grace Assembly, Lagos", init:"P" },
+    { q:"We had a first-timer in March who almost slipped through the cracks. Because of ChurchTrakr, we followed up with her the same week. She became a member a month later.", name:"Admin Sister Adaeze Nkemdirim", role:"Church Admin · Fountain of Life, Abuja", init:"A" },
     { q:"The SMS follow-up for absentees alone is worth everything. We sent messages to 12 members who had been absent for three weeks. Eight of them came back the following Sunday.", name:"Deacon Chukwuemeka Obi", role:"Ministry Coordinator · Light Chapel, Port Harcourt", init:"D" },
   ];
   return (
@@ -556,13 +556,13 @@ function Testimonials() {
 function FAQ() {
   const isMobile = useIsMobile();
   const faqs = [
-    { q:"Is Church Tracker free to use?", a:"Yes — get started completely free. Create your church account, add members, and mark attendance with no upfront cost. SMS messaging credits are available as an affordable add-on when you're ready." },
-    { q:"Do my members need to download an app?", a:"No. Church Tracker is used by your administrators and leaders only. Your congregation doesn't need to install anything or create accounts." },
-    { q:"How does the SMS follow-up feature work?", a:"After marking attendance, Church Tracker identifies members absent for consecutive Sundays. Send personalised SMS messages to those members in a single tap — choosing your message and sending to the whole list at once." },
+    { q:"Is ChurchTrakr free to use?", a:"Yes — get started completely free. Create your church account, add members, and mark attendance with no upfront cost. SMS messaging credits are available as an affordable add-on when you're ready." },
+    { q:"Do my members need to download an app?", a:"No. ChurchTrakr is used by your administrators and leaders only. Your congregation doesn't need to install anything or create accounts." },
+    { q:"How does the SMS follow-up feature work?", a:"After marking attendance, ChurchTrakr identifies members absent for consecutive Sundays. Send personalised SMS messages to those members in a single tap — choosing your message and sending to the whole list at once." },
     { q:"Is our member data safe and private?", a:"Absolutely. Your data belongs to your church only. We use industry-standard encryption and secure cloud infrastructure. We will never sell or share your members' information." },
-    { q:"Can I use it for multiple groups or services?", a:"Yes. Church Tracker supports multiple groups — track attendance separately for different services, departments, cell groups, youth ministry, choir, and more." },
+    { q:"Can I use it for multiple groups or services?", a:"Yes. ChurchTrakr supports multiple groups — track attendance separately for different services, departments, cell groups, youth ministry, choir, and more." },
     { q:"How long does it take to set up?", a:"Most churches are fully set up in under 5 minutes. Create your account, add your first group, add members, and you're ready to mark attendance at your very next service." },
-    { q:"What if my church is small?", a:"Church Tracker is just as valuable for a church of 30 as one of 3,000. In smaller churches, every single member matters deeply — knowing exactly who is present or absent makes all the difference." },
+    { q:"What if my church is small?", a:"ChurchTrakr is just as valuable for a church of 30 as one of 3,000. In smaller churches, every single member matters deeply — knowing exactly who is present or absent makes all the difference." },
   ];
   const [open, setOpen] = useState(null);
   return (
@@ -666,7 +666,7 @@ function Footer({ onLogin, onSignup }) {
                 background:`linear-gradient(135deg, ${FM}, ${FOREST})`,
                 display:"flex", alignItems:"center", justifyContent:"center",
                 fontFamily:F, fontWeight:700, fontSize:12, color:"#fff" }}>CT</div>
-              <span style={{ fontFamily:F, fontWeight:700, fontSize:16, color:"#fff" }}>Church Tracker</span>
+              <span style={{ fontFamily:F, fontWeight:700, fontSize:16, color:"#fff" }}>ChurchTrakr</span>
             </div>
             <p style={{ fontFamily:S, fontSize:13, color:"rgba(255,255,255,.32)",
               lineHeight:1.75, maxWidth:240, margin:0 }}>
@@ -694,12 +694,54 @@ function Footer({ onLogin, onSignup }) {
           ))}
         </div>
 
+        {/* WhatsApp Community */}
+        <div style={{
+          background:"rgba(37,211,102,.08)", border:"1px solid rgba(37,211,102,.18)",
+          borderRadius:14, padding: isMobile ? "18px 18px" : "20px 28px",
+          marginBottom:32, display:"flex", alignItems:"center",
+          flexWrap:"wrap", gap:16, justifyContent:"space-between",
+        }}>
+          <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+            <div style={{ width:40, height:40, borderRadius:10, flexShrink:0,
+              background:"rgba(37,211,102,.15)", display:"flex", alignItems:"center",
+              justifyContent:"center" }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="#25d366">
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+              </svg>
+            </div>
+            <div>
+              <div style={{ fontFamily:S, fontWeight:700, fontSize:14, color:"#fff", marginBottom:3 }}>
+                Join the ChurchTrakr Community
+              </div>
+              <div style={{ fontFamily:S, fontSize:12, color:"rgba(255,255,255,.45)", lineHeight:1.5 }}>
+                Get updates, tips, and support from our WhatsApp channel. Report issues directly to the admin.
+              </div>
+            </div>
+          </div>
+          <a
+            href="https://whatsapp.com/channel/ChurchTrakr"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display:"inline-flex", alignItems:"center", gap:8,
+              background:"#25d366", color:"#fff", textDecoration:"none",
+              borderRadius:10, padding:"10px 20px",
+              fontFamily:S, fontWeight:700, fontSize:13,
+              flexShrink:0, whiteSpace:"nowrap",
+            }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+            </svg>
+            Join WhatsApp Channel
+          </a>
+        </div>
+
         {/* Bottom bar */}
         <div style={{ borderTop:"1px solid rgba(255,255,255,.06)", paddingTop:22,
           display:"flex", justifyContent:"space-between", alignItems:"center",
           flexWrap:"wrap", gap:10 }}>
           <span style={{ fontFamily:S, fontSize:11.5, color:"rgba(255,255,255,.22)" }}>
-            © 2025 Church Tracker. All rights reserved.
+            © 2025 ChurchTrakr. All rights reserved.
           </span>
           <span style={{ fontFamily:S, fontSize:11.5, color:"rgba(255,255,255,.18)" }}>
             Built with purpose · Designed for ministry

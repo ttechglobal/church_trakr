@@ -70,7 +70,7 @@ export default function ForgotPage() {
             background:"rgba(255,255,255,.15)", border:"1px solid rgba(255,255,255,.2)",
             display:"flex", alignItems:"center", justifyContent:"center",
             fontFamily:F, fontWeight:700, fontSize:15, color:"#fff" }}>CT</div>
-          <span style={{ fontFamily:F, fontWeight:700, fontSize:19, color:"#fff" }}>ChurchTrackr</span>
+          <span style={{ fontFamily:F, fontWeight:700, fontSize:19, color:"#fff" }}>ChurchTrakr</span>
         </div>
 
         <div style={{ maxWidth:400 }}>

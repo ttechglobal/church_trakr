@@ -68,7 +68,7 @@ export default function LoginPage() {
             display:"flex", alignItems:"center", justifyContent:"center",
             fontFamily:F, fontWeight:700, fontSize:15, color:"#fff" }}>CT</div>
           <span style={{ fontFamily:F, fontWeight:700, fontSize:19,
-            color:"#fff" }}>Church Tracker</span>
+            color:"#fff" }}>ChurchTrakr</span>
         </div>
 
         <div style={{ maxWidth:400 }}>

@@ -224,7 +224,17 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
   const [saveErr,          setSaveErr]          = useState("");
   const [markMode,         setMarkMode]         = useState("mark_present"); // "mark_present" | "mark_absent"
 
-  const startMarking   = (g) => { setSelGrp(g); setStep("date"); };
+  const startMarking = (g) => {
+    // Always fully reset session state before starting a new group.
+    // Without this, editingSessionId from a previous session persists in memory
+    // (React doesn't unmount the page between navigations), causing the save
+    // to attempt updating the wrong session ID.
+    setSelGrp(g);
+    setEditingSessionId(null);
+    setRecs([]);
+    setSaveErr("");
+    setStep("date");
+  };
   const togglePresent  = (id) => setRecs(rs => rs.map(r => r.memberId === id ? { ...r, present: !r.present } : r));
   const presentCnt     = recs.filter(r => r.present === true).length;
   const absentCnt      = recs.filter(r => r.present === false).length;
@@ -530,7 +540,7 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
             <span style={{ fontSize:12, color: T.muted, fontFamily: T.sans }}>
               {isMarkAbsent
                 ? `${recs.length} members · tap ✕ to mark absent`
-                : `${recs.length} members · tap ✕ to mark absent`}
+                : `${recs.length} members · tap ✓ to mark present`}
             </span>
             <span style={{ fontSize:12, fontWeight:700, color:barColor,
               fontFamily: T.sans }}>{pct}%</span>

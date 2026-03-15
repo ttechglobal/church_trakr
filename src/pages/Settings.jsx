@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { usePWA } from "../hooks/usePWA";
 import { supabase } from "../services/supabaseClient";
 import { ChevR, EditIco, LogoutIco } from "../components/ui/Icons";
 import { Modal } from "../components/ui/Modal";
@@ -292,7 +293,7 @@ function SupportModal({ church, onClose, showToast }) {
   };
 
   const waText = encodeURIComponent(
-    `Hi ChurchTrackr Support!\n\nChurch: ${church?.name || "—"}\nAdmin: ${church?.admin_name || "—"}\nPhone: ${church?.phone || "—"}\n\nMessage:\n${msg}`
+    `Hi ChurchTrakr Support!\n\nChurch: ${church?.name || "—"}\nAdmin: ${church?.admin_name || "—"}\nPhone: ${church?.phone || "—"}\n\nMessage:\n${msg}`
   );
 
   return (
@@ -409,6 +410,23 @@ export default function Settings({ showToast }) {
   const [searchParams]      = useSearchParams();
   const [modal,    setModal]    = useState(null);
   const [activeTab, setActiveTab] = useState("general");
+
+  const { pushPermission, pushSubscription, subscribePush, unsubscribePush, isInstalled, showInstallBanner, promptInstall } = usePWA(church?.id);
+  const [pushLoading, setPushLoading] = useState(false);
+
+  const handleTogglePush = async () => {
+    setPushLoading(true);
+    if (pushSubscription) {
+      await unsubscribePush();
+      showToast("Push notifications disabled");
+    } else {
+      const ok = await subscribePush();
+      if (ok) showToast("Push notifications enabled ✅");
+      else if (pushPermission === "denied") showToast("Notifications blocked — enable in browser settings");
+      else showToast("Could not enable notifications ❌");
+    }
+    setPushLoading(false);
+  };
 
   useEffect(() => {
     if (searchParams.get("tab") === "templates") setActiveTab("templates");
@@ -544,6 +562,64 @@ export default function Settings({ showToast }) {
               </div>
             </div>
 
+            {/* NOTIFICATIONS section */}
+            <div className="st-label" style={{ marginTop: 4 }}>NOTIFICATIONS</div>
+            <div className="stsec" style={{ marginBottom: 16 }}>
+              <div className="strow" onClick={pushLoading ? undefined : handleTogglePush}
+                style={{ cursor: pushLoading ? "not-allowed" : "pointer", opacity: pushLoading ? 0.6 : 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div className="st-ico" style={{ background: pushSubscription ? "#dcfce7" : "var(--surface2)" }}>
+                    {pushSubscription ? "🔔" : "🔕"}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>
+                      {pushLoading ? "Updating…" : pushSubscription ? "Push Notifications On" : "Enable Push Notifications"}
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 1 }}>
+                      {pushPermission === "denied"
+                        ? "Blocked in browser — tap to open settings"
+                        : pushSubscription
+                          ? "Reminders for Sunday, birthdays, follow-ups"
+                          : "Get reminders for Sunday, birthdays, absentees"}
+                    </div>
+                  </div>
+                </div>
+                <div style={{
+                  width: 38, height: 22, borderRadius: 11, flexShrink: 0,
+                  background: pushSubscription ? "var(--success, #16a34a)" : "var(--border)",
+                  position: "relative", transition: "background .2s",
+                }}>
+                  <div style={{
+                    position: "absolute", top: 3, left: pushSubscription ? 19 : 3,
+                    width: 16, height: 16, borderRadius: "50%", background: "#fff",
+                    transition: "left .2s", boxShadow: "0 1px 3px rgba(0,0,0,.2)",
+                  }} />
+                </div>
+              </div>
+            </div>
+
+            {/* APP INSTALL section */}
+            {!isInstalled && (
+              <>
+                <div className="st-label" style={{ marginTop: 4 }}>APP</div>
+                <div className="stsec" style={{ marginBottom: 16 }}>
+                  <div className="strow" onClick={promptInstall || undefined}
+                    style={{ cursor: showInstallBanner ? "pointer" : "default" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div className="st-ico" style={{ background: "#e0f2fe" }}>📲</div>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 14 }}>Add to Home Screen</div>
+                        <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 1 }}>
+                          {showInstallBanner ? "Tap to install ChurchTrakr as an app" : "Open this page in your browser to install"}
+                        </div>
+                      </div>
+                    </div>
+                    {showInstallBanner && <ChevR />}
+                  </div>
+                </div>
+              </>
+            )}
+
             {/* SUPPORT section */}
             <div className="st-label" style={{ marginTop: 4 }}>SUPPORT</div>
             <div className="stsec" style={{ marginBottom: 32 }}>
@@ -552,7 +628,21 @@ export default function Settings({ showToast }) {
                   <div className="st-ico" style={{ background: "#e0f2fe" }}>💬</div>
                   <div>
                     <div style={{ fontWeight: 600, fontSize: 14 }}>Contact Support</div>
-                    <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 1 }}>Send a message or chat on WhatsApp</div>
+                    <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 1 }}>Send a message to the ChurchTrakr team</div>
+                  </div>
+                </div>
+                <ChevR />
+              </div>
+              <div className="strow" onClick={() => window.open("https://whatsapp.com/channel/ChurchTrakr", "_blank", "noopener,noreferrer")}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div className="st-ico" style={{ background: "#dcfce7" }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="#16a34a">
+                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>Join WhatsApp Community</div>
+                    <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 1 }}>Get updates & reach the admin for help</div>
                   </div>
                 </div>
                 <ChevR />

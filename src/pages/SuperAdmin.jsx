@@ -1,5 +1,5 @@
 // src/pages/SuperAdmin.jsx
-// ChurchTrackr Super Admin — completely separate from the church app
+// ChurchTrakr Super Admin — completely separate from the church app
 // Access: /superadmin  (private URL, not linked anywhere in the app)
 
 import { useState, useEffect, useCallback } from "react";
@@ -804,7 +804,7 @@ function SupportMessages({ showToast }) {
           </div>
           <div style={{ display: "flex", gap: 10 }}>
             {viewMsg.churches?.phone && (
-              <a href={`https://wa.me/${viewMsg.churches.phone.replace(/\D/g,"").replace(/^0/,"234")}?text=${encodeURIComponent(`Hi ${viewMsg.churches.admin_name || ""}, thank you for reaching out to ChurchTrackr support.`)}`}
+              <a href={`https://wa.me/${viewMsg.churches.phone.replace(/\D/g,"").replace(/^0/,"234")}?text=${encodeURIComponent(`Hi ${viewMsg.churches.admin_name || ""}, thank you for reaching out to ChurchTrakr support.`)}`}
                 target="_blank" rel="noreferrer" style={{ ...btn("#dcfce7", "#15803d", "11px 14px"), textDecoration: "none", flex: 1, justifyContent: "center" }}>
                 💚 Reply on WhatsApp
               </a>
@@ -845,7 +845,7 @@ function Login({ onLogin }) {
           <div style={{ width: 44, height: 44, background: T.brand, borderRadius: 12,
             display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>⛪</div>
           <div>
-            <div style={{ fontWeight: 800, fontSize: 18, color: T.text }}>ChurchTrackr</div>
+            <div style={{ fontWeight: 800, fontSize: 18, color: T.text }}>ChurchTrakr</div>
             <div style={{ fontSize: 12, color: T.muted }}>Admin Console</div>
           </div>
         </div>
@@ -983,7 +983,7 @@ function AdminDashboard({ user, onLogout }) {
                 <div style={{ width: 36, height: 36, background: T.brand, borderRadius: 10,
                   display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>⛪</div>
                 <div>
-                  <div style={{ fontWeight: 800, fontSize: 15, color: "#fff" }}>ChurchTrackr</div>
+                  <div style={{ fontWeight: 800, fontSize: 15, color: "#fff" }}>ChurchTrakr</div>
                   <div style={{ fontSize: 11, color: "rgba(255,255,255,.4)" }}>Admin Console</div>
                 </div>
                 <button onClick={() => setSideOpen(false)} style={{
@@ -1054,7 +1054,7 @@ function AdminDashboard({ user, onLogout }) {
             display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>⛪</div>
           {sideOpen && (
             <div>
-              <div style={{ fontWeight: 800, fontSize: 14, color: "#fff" }}>ChurchTrackr</div>
+              <div style={{ fontWeight: 800, fontSize: 14, color: "#fff" }}>ChurchTrakr</div>
               <div style={{ fontSize: 11, color: "rgba(255,255,255,.4)" }}>Admin Console</div>
             </div>
           )}

@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./hooks/useAuth";
+import { usePWA } from "./hooks/usePWA";
 import { AppLayout } from "./components/layout/AppLayout";
 import { Toast } from "./components/ui/Toast";
 
@@ -43,7 +44,7 @@ function LoadingScreen() {
     }}>
       <div style={{ fontFamily:"'Playfair Display',Georgia,serif", fontSize:"1.4rem",
         fontWeight:700, color:"rgba(255,255,255,.9)", letterSpacing:"-.01em" }}>
-        Church Tracker
+        ChurchTrakr
       </div>
       <div style={{
         width:32, height:32,
@@ -136,6 +137,20 @@ function AppShell() {
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
+  // Re-fetch data when the user returns to the tab after being away.
+  // This is the second cause of "app not working" — the data in memory goes
+  // stale after long periods of inactivity (Supabase session token refreshed,
+  // but the in-memory groups/members/attendance are still from hours ago).
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        loadAll();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [loadAll]);
+
   const addGroup    = useCallback(async g    => { const r = await createGroup({ ...g, church_id: churchId }); if (!r.error && r.data) setGroupsRaw(p => [...p, r.data]); return r; }, [churchId]);
   const editGroup   = useCallback(async (id, u) => { const r = await updateGroup(id, u); if (!r.error && r.data) setGroupsRaw(p => p.map(x => x.id === id ? r.data : x)); return r; }, []);
   const removeGroup = useCallback(async id  => { const r = await deleteGroup(id); if (!r.error) setGroupsRaw(p => p.filter(x => x.id !== id)); return r; }, []);
@@ -146,7 +161,22 @@ function AppShell() {
   const removeMember   = useCallback(async id  => { const r = await deleteMember(id); if (!r.error) setMembersRaw(p => p.filter(x => x.id !== id)); return r; }, []);
 
   const saveAttendance = useCallback(async session => {
-    const r = await saveAttendanceSession({ ...session, church_id: churchId });
+    let r = await saveAttendanceSession({ ...session, church_id: churchId });
+
+    // If the call fails with an auth/permission error, the JWT may have expired.
+    // Force a token refresh and retry once — this eliminates the "save fails,
+    // refresh the page, works again" cycle users experience after long sessions.
+    if (r.error) {
+      const msg = (r.error?.message || "").toLowerCase();
+      const isAuthErr = msg.includes("jwt") || msg.includes("auth") ||
+                        msg.includes("permission") || msg.includes("policy") ||
+                        msg.includes("401") || msg.includes("403");
+      if (isAuthErr) {
+        await supabase.auth.refreshSession();
+        r = await saveAttendanceSession({ ...session, church_id: churchId });
+      }
+    }
+
     if (!r.error && r.data) {
       const sessId = r.data.id;
       const normalised = (session.records || []).map(rec => ({
@@ -212,6 +242,8 @@ function AppShell() {
     });
   }, [churchId]);
 
+  const { showInstallBanner, promptInstall, dismissInstall, updateAvailable, applyUpdate } = usePWA(churchId);
+
   const shared = {
     groups, members, attendanceHistory, firstTimers, ftAttendance, ftGroupId,
     addGroup, editGroup, removeGroup,
@@ -224,6 +256,58 @@ function AppShell() {
   return (
     <>
       <AppLayout>
+        {/* ── Update available banner ── */}
+        {updateAvailable && (
+          <div style={{
+            background: "#1a3a2a", padding: "10px 16px",
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+          }}>
+            <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#fff" }}>
+              ✨ A new version of ChurchTrakr is ready
+            </span>
+            <button onClick={applyUpdate} style={{
+              background: "#fff", border: "none", color: "#1a3a2a",
+              borderRadius: 8, padding: "6px 14px",
+              fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: 12, cursor: "pointer",
+            }}>Update now</button>
+          </div>
+        )}
+
+        {/* ── Install banner ── */}
+        {showInstallBanner && (
+          <div style={{
+            background: "linear-gradient(135deg, #1a3a2a, #2d5a42)",
+            padding: "12px 16px",
+            display: "flex", alignItems: "center", gap: 12,
+            flexWrap: "wrap", justifyContent: "space-between",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(255,255,255,.15)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: 12, color: "#fff", flexShrink: 0 }}>CT</div>
+              <div>
+                <div style={{ fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: 13, color: "#fff" }}>
+                  Add ChurchTrakr to your home screen
+                </div>
+                <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "rgba(255,255,255,.6)", marginTop: 1 }}>
+                  Works offline · Faster access · No app store needed
+                </div>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+              <button onClick={dismissInstall} style={{
+                background: "rgba(255,255,255,.12)", border: "1px solid rgba(255,255,255,.2)",
+                color: "rgba(255,255,255,.7)", borderRadius: 8, padding: "7px 14px",
+                fontFamily: "'DM Sans',sans-serif", fontWeight: 600, fontSize: 12, cursor: "pointer",
+              }}>Not now</button>
+              <button onClick={promptInstall} style={{
+                background: "#fff", border: "none", color: "#1a3a2a",
+                borderRadius: 8, padding: "7px 16px",
+                fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: 12, cursor: "pointer",
+              }}>Install</button>
+            </div>
+          </div>
+        )}
         {dataError && (
           <div style={{ background:"#fce8e8", borderBottom:"2px solid #f5c8c8",
             padding:"10px 20px", fontSize:13, color:"#8a2020",

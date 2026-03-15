@@ -67,7 +67,7 @@ export default function Dashboard({ groups, members, attendanceHistory }) {
             <div style={{ fontFamily:"'Playfair Display',serif", fontSize:28, fontWeight:700,
               color:"#fff", lineHeight:1.15 }}>{firstName}</div>
             <div style={{ fontSize:13, color:"rgba(255,255,255,.5)", marginTop:4 }}>
-              {church?.name || "ChurchTrackr"}
+              {church?.name || "ChurchTrakr"}
             </div>
           </div>
           <button onClick={() => navigate("/settings")} style={{
@@ -201,7 +201,7 @@ export default function Dashboard({ groups, members, attendanceHistory }) {
             borderRadius:20, padding:"32px 20px", textAlign:"center", marginTop:8 }}>
             <div style={{ fontSize:52, marginBottom:14 }}>⛪</div>
             <div style={{ fontFamily:"'Playfair Display',serif", fontWeight:700,
-              fontSize:19, marginBottom:8 }}>Welcome to ChurchTrackr!</div>
+              fontSize:19, marginBottom:8 }}>Welcome to ChurchTrakr!</div>
             <div style={{ fontSize:13, color:"var(--muted)", lineHeight:1.7,
               marginBottom:20, maxWidth:260, margin:"0 auto 20px" }}>
               Start by creating a group and adding your members.

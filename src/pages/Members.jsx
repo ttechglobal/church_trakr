@@ -12,7 +12,7 @@ function EditMemberModal({ member, groups, onClose, onSave }) {
     <Modal title="Edit Member" onClose={onClose}>
       <div className="fstack">
         <div className="fg"><label className="fl">Full Name *</label><input className="fi" name="name" value={f.name} onChange={h} /></div>
-        <div className="fg"><label className="fl">Phone *</label><input className="fi" name="phone" value={f.phone} onChange={h} /></div>
+        <div className="fg"><label className="fl">Phone <span style={{ fontWeight: 400, color: "var(--muted)" }}>optional</span></label><input className="fi" name="phone" value={f.phone} onChange={h} /></div>
         <div className="fg"><label className="fl">Address</label><input className="fi" name="address" placeholder="Enter address…" value={f.address} onChange={h} /></div>
         <div className="fg"><label className="fl">Birthday</label><input className="fi" name="birthday" type="date" value={f.birthday} onChange={h} /></div>
         <div className="fg">
@@ -37,7 +37,7 @@ function AddMemberModal({ onClose, onAdd, saving }) {
   const [err, setErr] = useState("");
   const h = e => setF(x => ({ ...x, [e.target.name]: e.target.value }));
   const go = () => {
-    if (!f.firstName || !f.phone) { setErr("First name and phone are required"); return; }
+    if (!f.firstName.trim()) { setErr("First name is required"); return; }
     onAdd({ name: `${f.firstName} ${f.lastName}`.trim(), phone: f.phone, address: f.address, birthday: f.birthday });
   };
   return (
@@ -47,7 +47,7 @@ function AddMemberModal({ onClose, onAdd, saving }) {
           <div className="fg"><label className="fl">First Name *</label><input className="fi" name="firstName" placeholder="Adaeze" value={f.firstName} onChange={h} /></div>
           <div className="fg"><label className="fl">Last Name</label><input className="fi" name="lastName" placeholder="Okafor" value={f.lastName} onChange={h} /></div>
         </div>
-        <div className="fg"><label className="fl">Phone Number *</label><input className="fi" name="phone" placeholder="08012345678" value={f.phone} onChange={h} /></div>
+        <div className="fg"><label className="fl">Phone Number <span style={{ fontWeight: 400, color: "var(--muted)" }}>optional</span></label><input className="fi" name="phone" placeholder="08012345678" value={f.phone} onChange={h} /></div>
         <div className="fg"><label className="fl">Address <span style={{ fontWeight: 400, color: "var(--muted)" }}>optional</span></label><input className="fi" name="address" placeholder="14 Lagos Rd, Ikeja" value={f.address} onChange={h} /></div>
         <div className="fg"><label className="fl">Birthday <span style={{ fontWeight: 400, color: "var(--muted)" }}>optional</span></label><input className="fi" name="birthday" type="date" value={f.birthday} onChange={h} /></div>
         {err && <p style={{ color: "var(--danger)", fontSize: 13 }}>{err}</p>}

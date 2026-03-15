@@ -1,14 +1,33 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <!-- vite-plugin-pwa injects the manifest link automatically at build time.
+         Do NOT add a manual <link rel="manifest"> here — it causes the
+         "Manifest: Syntax error" because it points to the wrong file. -->
+
+    <!-- Theme & PWA meta -->
     <meta name="theme-color" content="#1a3a2a" />
-    <title>ChurchTrack</title>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,900;1,400;1,600&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="ChurchTrakr" />
+
+    <!-- Icons -->
+    <link rel="icon" type="image/png" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+
+    <!-- SEO -->
+    <title>ChurchTrakr — Church Attendance & Member Management</title>
+    <meta name="description" content="ChurchTrakr helps pastors and administrators mark attendance, track members, follow up with absentees, and send SMS messages — all from one simple app." />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="ChurchTrakr" />
+    <meta property="og:description" content="Church attendance and member management for ministry leaders." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/icons/icon-512.png" />
   </head>
   <body>
     <div id="root"></div>

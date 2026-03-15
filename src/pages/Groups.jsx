@@ -1,14 +1,43 @@
 // src/pages/Groups.jsx
 import { useState } from "react";
 import { Modal } from "../components/ui/Modal";
-import { getAv, fmtDate, fmtBday, uid, normBirthday } from "../lib/helpers";
+import { getAv, fmtDate, fmtBday, uid, normBirthday, addOneDay } from "../lib/helpers";
 import { PlusIco, SrchIco, TrashIco, ChevR, ChevL, UpIco, EditIco, PhoneIco, PinIco, CakeIco, SmsIco, SetIco } from "../components/ui/Icons";
+import { sendSms } from "../services/sms";
 
 // ── Birthday SMS Modal ────────────────────────────────────────────────────────
 function BdaySmsModal({ celebrants, template, onClose, showToast }) {
   const [sel, setSel] = useState(celebrants.map(m => m.id));
   const [txt, setTxt] = useState(template);
+  const [sending, setSending] = useState(false);
   const allSel = sel.length === celebrants.length;
+
+  const handleSend = async () => {
+    const targets = celebrants.filter(m => sel.includes(m.id));
+    const recipients = targets
+      .filter(m => m.phone)
+      .map(m => ({ name: m.name, phone: m.phone }));
+
+    if (recipients.length === 0) {
+      showToast("No recipients have a phone number on file ⚠️");
+      return;
+    }
+
+    setSending(true);
+    const result = await sendSms({ recipients, message: txt, type: "birthday" });
+    setSending(false);
+
+    if (!result.success) {
+      showToast(`Failed to send: ${result.error || "unknown error"} ❌`);
+      return;
+    }
+
+    const noPhone = targets.length - recipients.length;
+    const note = noPhone > 0 ? ` (${noPhone} skipped — no phone)` : "";
+    showToast(`🎂 Birthday messages sent to ${result.sent ?? recipients.length} member${recipients.length !== 1 ? "s" : ""}!${note}`);
+    onClose();
+  };
+
   return (
     <Modal title="🎂 Send Birthday Messages" onClose={onClose}>
       <div style={{ marginBottom: 14 }}>
@@ -25,7 +54,10 @@ function BdaySmsModal({ celebrants, template, onClose, showToast }) {
               onChange={() => setSel(s => s.includes(m.id) ? s.filter(x => x !== m.id) : [...s, m.id])}
               style={{ width: 18, height: 18, accentColor: "var(--brand)", flexShrink: 0 }} />
             <span style={{ fontSize: 18 }}>🎂</span>
-            <div style={{ fontWeight: 600, fontSize: 14 }}>{m.name}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>{m.name}</div>
+              {!m.phone && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>No phone — will be skipped</div>}
+            </div>
           </label>
         ))}
       </div>
@@ -34,9 +66,9 @@ function BdaySmsModal({ celebrants, template, onClose, showToast }) {
         <textarea className="fi" rows={5} value={txt} onChange={e => setTxt(e.target.value)} style={{ resize: "vertical" }} />
         <p className="fh">Use {"{name}"} for the member's name</p>
       </div>
-      <button className="btn ba blg" disabled={sel.length === 0}
-        onClick={() => { showToast(`🎂 Birthday messages sent to ${sel.length} member${sel.length !== 1 ? "s" : ""}!`); onClose(); }}>
-        <SmsIco s={18} /> Send to {sel.length} Member{sel.length !== 1 ? "s" : ""}
+      <button className="btn ba blg" disabled={sel.length === 0 || sending}
+        onClick={handleSend}>
+        <SmsIco s={18} /> {sending ? "Sending…" : `Send to ${sel.length} Member${sel.length !== 1 ? "s" : ""}`}
       </button>
     </Modal>
   );
@@ -105,7 +137,7 @@ function ImportModal({ group, onClose, onImport }) {
   const [parseError, setParseError] = useState("");
   const [parsing, setParsing] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [mp, setMp] = useState({ fullName: "", firstName: "", lastName: "", phone: "", address: "", birthday: "" });
+  const [mp, setMp] = useState({ fullName: "", firstName: "", lastName: "", phone: "", address: "" });
   const NONE = "— skip —";
 
   // ── Auto-guess column mapping ─────────────────────────────────────────────
@@ -113,7 +145,6 @@ function ImportModal({ group, onClose, onImport }) {
     const guess = (kws) => hdrs.find(h => kws.some(k => h.toLowerCase().includes(k))) || NONE;
     const nm = guess(["full name","fullname","name"]);
     const fn = guess(["first name","firstname","first"]);
-    // If we found a clear "full name" col use full mode; if separate first/last prefer split
     const hasSplit = fn !== NONE && guess(["last name","lastname","surname","last"]) !== NONE;
     if (hasSplit) setNameMode("split");
     setMp({
@@ -122,7 +153,6 @@ function ImportModal({ group, onClose, onImport }) {
       lastName:  guess(["last name","lastname","surname","last"]),
       phone:     guess(["phone","mobile","tel","number","contact","gsm"]),
       address:   guess(["address","location","home","residence"]),
-      birthday:  guess(["birth","dob","birthday","born","date of birth"]),
     });
   };
 
@@ -159,25 +189,26 @@ function ImportModal({ group, onClose, onImport }) {
   const parseXLSX = (file) => new Promise((resolve, reject) => {
     const process = (ab) => {
       try {
-        // cellDates:true converts Excel date serials to JS Date objects
-        const wb = window.XLSX.read(ab, { type: "array", cellDates: true, dateNF: "yyyy-mm-dd" });
+        // Read with dateNF so date cells are formatted as strings in the display format.
+        // We do NOT use cellDates:true because it converts Excel serials to JS Date objects
+        // whose UTC/local time conversion causes -1 day errors in Lagos UTC+1.
+        // Instead: raw:false makes SheetJS format every cell as a string using the cell's
+        // own format (so a date cell showing "14/03/2025" comes through as "14/03/2025"),
+        // then normBirthday parses the string correctly.
+        const wb = window.XLSX.read(ab, { type: "array", dateNF: "yyyy-mm-dd" });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        // raw:true keeps numbers as numbers (so we can detect date serials),
-        // but we'll manually stringify everything after
-        const aoa = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: true });
+        // raw:false → SheetJS formats cells as strings using their cell format.
+        // Date cells that display as "14/03/2025" come through as "14/03/2025" ✅
+        // Date cells that display as "2025-03-14" come through as "2025-03-14" ✅
+        // normBirthday then handles all formats correctly.
+        const aoa = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: false });
         if (aoa.length < 2) { reject(new Error("Spreadsheet appears empty.")); return; }
         const headers = aoa[0].map(h => String(h).trim()).filter(Boolean);
 
         const toStr = (val) => {
           if (val === null || val === undefined) return "";
-          // JS Date object (from cellDates:true)
-          if (val instanceof Date) {
-            if (isNaN(val.getTime())) return "";
-            const y = val.getFullYear();
-            const m = String(val.getMonth() + 1).padStart(2, "0");
-            const d = String(val.getDate()).padStart(2, "0");
-            return `${y}-${m}-${d}`;
-          }
+          // With raw:false, all values come through as strings already.
+          // Just trim and return — normBirthday handles the format parsing.
           return String(val).trim();
         };
 
@@ -248,7 +279,6 @@ function ImportModal({ group, onClose, onImport }) {
     name: nameMode === "full" ? (row[mp.fullName] || "") : `${row[mp.firstName] || ""} ${row[mp.lastName] || ""}`.trim(),
     phone: row[mp.phone] || "",
     address: mp.address !== NONE ? row[mp.address] || "" : "",
-    birthday: mp.birthday !== NONE ? row[mp.birthday] || "" : ""
   })).filter(r => r.name || r.phone);
 
   const doImport = async () => {
@@ -256,8 +286,8 @@ function ImportModal({ group, onClose, onImport }) {
       name: nameMode === "full" ? (row[mp.fullName] || "").trim() : `${row[mp.firstName] || ""} ${row[mp.lastName] || ""}`.trim(),
       phone: (row[mp.phone] || "").trim(),
       address: mp.address !== NONE ? (row[mp.address] || "").trim() : "",
-      birthday: mp.birthday !== NONE ? normBirthday((row[mp.birthday] || "").trim()) : ""
-    })).filter(r => r.name && r.phone);
+      birthday: "", // Birthday not imported — members add it individually via Edit
+    })).filter(r => r.name);
     setImporting(true);
     await onImport(mems);
     setImporting(false);
@@ -291,11 +321,12 @@ function ImportModal({ group, onClose, onImport }) {
               The <strong>first row must be column headers</strong> (e.g. Name, Phone, Address).
             </p>
             <div style={{ background: "#fff", borderRadius: 8, padding: "10px 12px", fontSize: 12, color: "#444", fontFamily: "monospace", lineHeight: 1.8 }}>
-              <div style={{ fontWeight: 700 }}>Name, Phone, Address, Birthday</div>
-              <div>Adaeze Okafor, 08012345678, Ikeja Lagos, 1990-05-21</div>
-              <div>James Eze, 07098765432, Lekki, </div>
+              <div style={{ fontWeight: 700 }}>Name, Phone, Address</div>
+              <div>Adaeze Okafor, 08012345678, Ikeja Lagos</div>
+              <div>James Eze, 07098765432, Lekki</div>
             </div>
             <p style={{ fontSize: 12, color: "#555", marginTop: 8 }}>
+              🎂 <strong>Birthdays</strong> are added individually after import via Edit Member.<br/>
               💡 <strong>Using Word/Google Docs?</strong> Go to File → Download as → CSV, then upload that file.
             </p>
           </div>
@@ -371,11 +402,8 @@ function ImportModal({ group, onClose, onImport }) {
                 {colOpts.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
-            <div className="fg">
-              <label className="fl">Birthday column <span style={{ fontWeight: 400, color: "var(--muted)" }}>optional</span></label>
-              <select className="fi" value={mp.birthday} onChange={e => setMp(m => ({ ...m, birthday: e.target.value }))}>
-                {colOpts.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+            <div style={{ background: "var(--surface2)", borderRadius: 10, padding: "10px 14px", fontSize: 13, color: "var(--muted)" }}>
+              🎂 Birthdays are not imported. After importing, edit each member individually to add their birthday.
             </div>
           </div>
           <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
@@ -396,7 +424,6 @@ function ImportModal({ group, onClose, onImport }) {
               <div style={{ display: "flex", gap: 14, marginTop: 4, flexWrap: "wrap" }}>
                 {r.phone && <span style={{ fontSize: 12, color: "var(--muted)" }}>📱 {r.phone}</span>}
                 {r.address && <span style={{ fontSize: 12, color: "var(--muted)" }}>📍 {r.address}</span>}
-                {r.birthday && <span style={{ fontSize: 12, color: "var(--muted)" }}>🎂 {r.birthday}</span>}
               </div>
             </div>
           ))}
@@ -430,7 +457,7 @@ function EditMemberModal({ member, groups, onClose, onSave }) {
     <Modal title="Edit Member" onClose={onClose}>
       <div className="fstack">
         <div className="fg"><label className="fl">Full Name *</label><input className="fi" name="name" value={f.name} onChange={h} /></div>
-        <div className="fg"><label className="fl">Phone *</label><input className="fi" name="phone" value={f.phone} onChange={h} /></div>
+        <div className="fg"><label className="fl">Phone <span style={{ fontWeight: 400, color: "var(--muted)" }}>optional</span></label><input className="fi" name="phone" value={f.phone} onChange={h} /></div>
         <div className="fg"><label className="fl">Address</label><input className="fi" name="address" placeholder="Enter address…" value={f.address} onChange={h} /></div>
         <div className="fg"><label className="fl">Birthday</label><input className="fi" name="birthday" type="date" value={f.birthday} onChange={h} /></div>
         <div className="fg">
@@ -520,13 +547,45 @@ function MemberProfile({ member, groups, attendanceHistory, onBack, onEdit, onRe
 }
 
 // ── Attendance Report View (full session detail from Reports tab) ──────────────
-function SessionReportView({ session, group, onBack, showToast }) {
+function SessionReportView({ session, group, members, onBack, showToast }) {
   const [smsModal, setSmsModal] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [smsMessage, setSmsMessage] = useState("Hi {name}, we missed you at service. Hope to see you next time! 🙏");
   const recs = session.records;
   const presentCnt = recs.filter(r => r.present === true).length;
   const absentCnt  = recs.filter(r => r.present === false).length;
   const absentList = recs.filter(r => r.present === false);
   const rate = recs.length ? Math.round((presentCnt / recs.length) * 100) : 0;
+
+  const handleSendAbsentees = async () => {
+    // Enrich absentList with phone numbers from the members array.
+    const recipients = absentList
+      .map(r => {
+        const member = members?.find(m => m.id === r.memberId);
+        return member?.phone ? { name: r.name, phone: member.phone } : null;
+      })
+      .filter(Boolean);
+
+    if (recipients.length === 0) {
+      showToast("No absentees have a phone number on file ⚠️");
+      setSmsModal(false);
+      return;
+    }
+
+    setSending(true);
+    const result = await sendSms({ recipients, message: smsMessage, type: "absentees" });
+    setSending(false);
+
+    if (!result.success) {
+      showToast(`Failed to send: ${result.error || "unknown error"} ❌`);
+      return;
+    }
+
+    const skipped = absentList.length - recipients.length;
+    const note = skipped > 0 ? ` (${skipped} skipped — no phone)` : "";
+    showToast(`SMS sent to ${result.sent ?? recipients.length} member${recipients.length !== 1 ? "s" : ""}! ✉️${note}`);
+    setSmsModal(false);
+  };
 
   return (
     <div className="page">
@@ -591,10 +650,18 @@ function SessionReportView({ session, group, onBack, showToast }) {
         )}
       </div>
       {smsModal && (
-        <Modal title="Send SMS to Absentees" onClose={() => setSmsModal(false)}>
-          <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 16 }}>Sending to {absentList.length} absentees from {fmtDate(session.date)}.</p>
-          <button className="btn ba blg" onClick={() => { showToast(`SMS sent to ${absentList.length} members! ✉️`); setSmsModal(false); }}>
-            <SmsIco s={18} /> Send Now
+        <Modal title="Send SMS to Absentees" onClose={() => !sending && setSmsModal(false)}>
+          <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 12 }}>
+            Sending to {absentList.length} absentees from {fmtDate(session.date)}.
+          </p>
+          <div className="fg" style={{ marginBottom: 16 }}>
+            <label className="fl">Message</label>
+            <textarea className="fi" rows={4} value={smsMessage}
+              onChange={e => setSmsMessage(e.target.value)} style={{ resize: "vertical" }} />
+            <p className="fh">Use {"{name}"} for the member's name</p>
+          </div>
+          <button className="btn ba blg" disabled={sending} onClick={handleSendAbsentees}>
+            <SmsIco s={18} /> {sending ? "Sending…" : "Send Now"}
           </button>
         </Modal>
       )}
@@ -632,13 +699,15 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
     : 0;
 
   // Birthday logic — members whose birthday is today (month + day match)
-  // Supports YYYY-MM-DD and MM-DD formats
-  // Use midnight to avoid UTC offset shifting dates by -1 day
+  // getBirthdayMD normalises the stored value first so members with bad DB
+  // data (raw strings like '14/05/1990' stored before the fix) still match.
   const todayMidnight = new Date(); todayMidnight.setHours(0,0,0,0);
   const todayMD = `${String(todayMidnight.getMonth() + 1).padStart(2, "0")}-${String(todayMidnight.getDate()).padStart(2, "0")}`;
   const getBirthdayMD = (bday) => {
     if (!bday) return null;
-    const parts = bday.split("-");
+    // Normalise first — handles any format stored in DB
+    const norm = normBirthday(bday) || bday;
+    const parts = norm.split("-");
     if (parts.length === 3) return `${parts[1].padStart(2,"0")}-${parts[2].padStart(2,"0")}`; // YYYY-MM-DD
     if (parts.length === 2) return `${parts[0].padStart(2,"0")}-${parts[1].padStart(2,"0")}`; // MM-DD
     return null;
@@ -712,7 +781,7 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
   };
 
   if (viewSession) {
-    return <SessionReportView session={viewSession} group={group} onBack={() => setViewSession(null)} showToast={showToast} />;
+    return <SessionReportView session={viewSession} group={group} members={members} onBack={() => setViewSession(null)} showToast={showToast} />;
   }
 
   if (viewMember) {
@@ -911,8 +980,11 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
               <div className="stitle" style={{ marginBottom: 12 }}>Coming Up (next 7 days)</div>
               {upcomingBdays.map(m => {
                 const av = getAv(m.name);
-                const parts = m.birthday.split("-");
-                const bday = new Date(todayMidnight.getFullYear(), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                // Use getBirthdayMD (which normalises first) instead of splitting
+                // m.birthday directly — raw splits break for MM-DD format (parts[2] = undefined)
+                const bdMD = getBirthdayMD(m.birthday) || "01-01";
+                const [bmm, bdd] = bdMD.split("-").map(Number);
+                const bday = new Date(todayMidnight.getFullYear(), bmm - 1, bdd);
                 if (bday < todayMidnight) bday.setFullYear(todayMidnight.getFullYear() + 1);
                 const daysLeft = Math.round((bday - todayMidnight) / (1000 * 60 * 60 * 24));
                 return (
@@ -935,8 +1007,10 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
             {gm.filter(m => m.birthday).length === 0
               ? <p style={{ fontSize: 13, color: "var(--muted)" }}>No birthdays recorded yet. Edit members to add birthdays.</p>
               : gm.filter(m => m.birthday).sort((a, b) => {
-                  const md = m => m.birthday.slice(5); // MM-DD
-                  return md(a).localeCompare(md(b));
+                  // slice(5) only works for YYYY-MM-DD — breaks for MM-DD format (returns "4").
+                  // getBirthdayMD normalises first and always returns MM-DD.
+                  const sortKey = m => getBirthdayMD(m.birthday) || "12-31";
+                  return sortKey(a).localeCompare(sortKey(b));
                 }).map(m => {
                   const av = getAv(m.name);
                   const isToday = birthdayToday.some(b => b.id === m.id);
@@ -958,20 +1032,39 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
       {/* ── Modals ── */}
       {addModal && <AddMemberModal onClose={() => setAddModal(false)} onAdd={handleAdd} groupName={group.name} />}
       {importModal && <ImportModal group={group} onClose={() => setImportModal(false)} onImport={async importedMembers => {
-        let added = 0, failed = 0;
+        // Split into two buckets:
+        // 1. Existing members (matched by phone) — update groupIds individually
+        // 2. Genuinely new members — bulk insert in one DB call
+        // Previously this looped and called addMember() once per member,
+        // causing 50+ sequential round-trips for large imports.
+        const toUpdate = [];
+        const toCreate = [];
+
         for (const { name, phone, address, birthday } of importedMembers) {
-          const ex = members.find(m => m.phone === phone);
+          const ex = phone ? members.find(m => m.phone && m.phone === phone) : null;
           if (ex) {
-            const { error } = await editMember(ex.id, { groupIds: [...new Set([...(ex.groupIds || []), group.id])] });
-            if (error) failed++;
+            toUpdate.push({ id: ex.id, groupIds: [...new Set([...(ex.groupIds || []), group.id])] });
           } else {
-            const { error } = await addMember({ name, phone, address: address || "", birthday: birthday || "", groupIds: [group.id], status: "active" });
-            if (error) failed++;
-            else added++;
+            toCreate.push({ name, phone: phone || "", address: address || "", birthday: birthday || "", groupIds: [group.id], status: "active" });
           }
         }
+
+        let failed = 0;
+
+        // Bulk insert new members in one round-trip
+        if (toCreate.length > 0) {
+          const { error } = await bulkAddMembers(toCreate);
+          if (error) failed += toCreate.length;
+        }
+
+        // Update existing members (still individual — each has a different groupIds array)
+        for (const { id, groupIds } of toUpdate) {
+          const { error } = await editMember(id, { groupIds });
+          if (error) failed++;
+        }
+
         if (failed > 0) {
-          showToast(`⚠️ ${added} imported, ${failed} failed — check your connection`);
+          showToast(`⚠️ ${importedMembers.length - failed} imported, ${failed} failed — check your connection`);
         } else {
           showToast(`${importedMembers.length} members imported into ${group.name}! ✅`);
         }
@@ -1019,7 +1112,15 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
           groupName={group.name}
           currentTemplate={bdayMsg}
           onClose={() => setBdaySettingsOpen(false)}
-          onSave={t => { setBdayMsg(t); setBdaySettingsOpen(false); showToast("Birthday message updated! 🎂"); }}
+          onSave={async t => {
+            // Persist to DB so the template survives page reloads.
+            // Previously this only updated local state and was lost on refresh.
+            const { error } = await editGroup(group.id, { bdayMsg: t });
+            if (error) { showToast("Failed to save message ❌"); return; }
+            setBdayMsg(t);
+            setBdaySettingsOpen(false);
+            showToast("Birthday message updated! 🎂");
+          }}
         />
       )}
       {bdaySmsOpen && bdayTargets.length > 0 && (

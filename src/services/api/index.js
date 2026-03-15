@@ -46,12 +46,31 @@ export const deleteMember = (id) =>
   supabase.from("members").delete().eq("id", id);
 
 // ── ATTENDANCE ────────────────────────────────────────────────────────────────
-export const fetchAttendance = (churchId) =>
-  supabase.from("attendance_sessions")
-    .select("*, records:attendance_records(*)")
-    .eq("church_id", churchId)
-    .order("date", { ascending: false })
-    .limit(200);
+// Fetches ALL attendance sessions in pages of 500 so churches with large
+// history don't silently lose old sessions. The previous hard .limit(200)
+// caused older records to disappear from reports and skewed attendance rates.
+export const fetchAttendance = async (churchId) => {
+  const PAGE = 500;
+  let allSessions = [];
+  let from = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from("attendance_sessions")
+      .select("*, records:attendance_records(*)")
+      .eq("church_id", churchId)
+      .order("date", { ascending: false })
+      .range(from, from + PAGE - 1);
+
+    if (error) return { data: null, error };
+    allSessions = allSessions.concat(data ?? []);
+    hasMore = (data?.length ?? 0) === PAGE;
+    from += PAGE;
+  }
+
+  return { data: allSessions, error: null };
+};
 
 export const saveAttendanceSession = async (session) => {
   const { id, groupId, date, church_id, records } = session;
