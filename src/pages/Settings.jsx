@@ -420,10 +420,18 @@ export default function Settings({ showToast }) {
       await unsubscribePush();
       showToast("Push notifications disabled");
     } else {
-      const ok = await subscribePush();
-      if (ok) showToast("Push notifications enabled ✅");
-      else if (pushPermission === "denied") showToast("Notifications blocked — enable in browser settings");
-      else showToast("Could not enable notifications ❌");
+      const result = await subscribePush();
+      if (result.ok) {
+        showToast("Push notifications enabled ✅");
+      } else if (result.reason === "denied") {
+        showToast("Notifications blocked — go to your browser/phone Settings and allow notifications for this site");
+      } else if (result.reason === "no_vapid_key") {
+        showToast("Push not configured yet — VAPID key missing. See setup guide.");
+      } else if (result.reason === "unsupported") {
+        showToast("Your browser does not support push notifications");
+      } else {
+        showToast("Could not enable notifications — try again or check browser settings ❌");
+      }
     }
     setPushLoading(false);
   };

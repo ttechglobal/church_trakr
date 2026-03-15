@@ -1,11 +1,5 @@
 // src/hooks/usePWA.js
-// Works with vite-plugin-pwa (injectManifest strategy).
-// vite-plugin-pwa registers the SW automatically — we just handle:
-//   1. Install-to-homescreen prompt
-//   2. Push notification subscription
-//   3. New version available prompt
-
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "../services/supabaseClient";
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || "";
@@ -20,14 +14,18 @@ function urlBase64ToUint8Array(base64String) {
 export function usePWA(churchId) {
   const [installPrompt,    setInstallPrompt]    = useState(null);
   const [isInstalled,      setIsInstalled]      = useState(false);
-  const [pushPermission,   setPushPermission]   = useState("default");
+  const [pushPermission,   setPushPermission]   = useState(
+    "Notification" in window ? Notification.permission : "default"
+  );
   const [pushSubscription, setPushSubscription] = useState(null);
   const [updateAvailable,  setUpdateAvailable]  = useState(false);
+  const [swRegistration,   setSwRegistration]   = useState(null);
   const [installDismissed, setInstallDismissed] = useState(
     () => !!localStorage.getItem("pwa_install_dismissed")
   );
+  const waitingSWRef = useRef(null);
 
-  // ── Detect installed state ─────────────────────────────────────────────────
+  // ── 1. Detect if already installed (standalone mode) ──────────────────────
   useEffect(() => {
     const mq = window.matchMedia("(display-mode: standalone)");
     setIsInstalled(mq.matches || window.navigator.standalone === true);
@@ -36,7 +34,7 @@ export function usePWA(churchId) {
     return () => mq.removeEventListener("change", h);
   }, []);
 
-  // ── Capture install prompt ─────────────────────────────────────────────────
+  // ── 2. Capture the install prompt (Chrome/Android) ────────────────────────
   useEffect(() => {
     const onPrompt = e => { e.preventDefault(); setInstallPrompt(e); };
     const onInstalled = () => { setIsInstalled(true); setInstallPrompt(null); };
@@ -48,30 +46,44 @@ export function usePWA(churchId) {
     };
   }, []);
 
-  // ── Check for existing push subscription + notification permission ─────────
+  // ── 3. Wait for SW to be ready, get existing subscription, watch for updates
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
-    if ("Notification" in window) setPushPermission(Notification.permission);
 
     navigator.serviceWorker.ready.then(reg => {
+      setSwRegistration(reg);
+
+      // Get any existing push subscription
       reg.pushManager.getSubscription().then(sub => {
         if (sub) setPushSubscription(sub);
       });
 
-      // vite-plugin-pwa fires this event when a new SW is waiting
+      // If there's already a waiting SW when we load, show the banner
+      if (reg.waiting) {
+        waitingSWRef.current = reg.waiting;
+        setUpdateAvailable(true);
+      }
+
+      // Watch for a NEW sw installing in the future
       reg.addEventListener("updatefound", () => {
         const newSW = reg.installing;
         if (!newSW) return;
         newSW.addEventListener("statechange", () => {
           if (newSW.state === "installed" && navigator.serviceWorker.controller) {
+            waitingSWRef.current = newSW;
             setUpdateAvailable(true);
           }
         });
       });
     });
+
+    // When the SW actually takes control (after skip waiting), reload
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      window.location.reload();
+    });
   }, []);
 
-  // ── Install ────────────────────────────────────────────────────────────────
+  // ── Install to home screen ────────────────────────────────────────────────
   const promptInstall = useCallback(async () => {
     if (!installPrompt) return false;
     installPrompt.prompt();
@@ -86,26 +98,48 @@ export function usePWA(churchId) {
     setInstallPrompt(null);
   }, []);
 
-  // ── Apply update ───────────────────────────────────────────────────────────
-  const applyUpdate = useCallback(async () => {
-    const reg = await navigator.serviceWorker.ready;
-    if (reg.waiting) {
-      reg.waiting.postMessage({ type: "SKIP_WAITING" });
+  // ── Apply update — tell the waiting SW to skip waiting ───────────────────
+  // The controllerchange listener above will then reload the page.
+  const applyUpdate = useCallback(() => {
+    const sw = waitingSWRef.current;
+    if (sw) {
+      sw.postMessage({ type: "SKIP_WAITING" });
+    } else {
+      // Fallback: just reload and let the browser sort it out
       window.location.reload();
     }
   }, []);
 
-  // ── Push subscribe ─────────────────────────────────────────────────────────
+  // ── Enable push notifications ─────────────────────────────────────────────
   const subscribePush = useCallback(async () => {
-    if (!VAPID_PUBLIC_KEY) {
-      console.warn("[usePWA] VITE_VAPID_PUBLIC_KEY not set");
-      return false;
+    // Step 1: check SW is available
+    if (!("serviceWorker" in navigator)) {
+      console.warn("[usePWA] Service workers not supported");
+      return { ok: false, reason: "unsupported" };
     }
-    try {
-      const permission = await Notification.requestPermission();
-      setPushPermission(permission);
-      if (permission !== "granted") return false;
 
+    // Step 2: check VAPID key is configured
+    if (!VAPID_PUBLIC_KEY) {
+      console.warn("[usePWA] VITE_VAPID_PUBLIC_KEY is not set in .env");
+      return { ok: false, reason: "no_vapid_key" };
+    }
+
+    // Step 3: request notification permission
+    let permission;
+    try {
+      permission = await Notification.requestPermission();
+      setPushPermission(permission);
+    } catch (err) {
+      console.warn("[usePWA] requestPermission failed:", err);
+      return { ok: false, reason: "permission_error" };
+    }
+
+    if (permission !== "granted") {
+      return { ok: false, reason: "denied" };
+    }
+
+    // Step 4: subscribe via pushManager
+    try {
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
@@ -113,6 +147,7 @@ export function usePWA(churchId) {
       });
       setPushSubscription(sub);
 
+      // Step 5: save to Supabase
       if (churchId) {
         await supabase.from("push_subscriptions").upsert({
           church_id:    churchId,
@@ -120,17 +155,22 @@ export function usePWA(churchId) {
           updated_at:   new Date().toISOString(),
         }, { onConflict: "church_id" });
       }
-      return true;
+
+      return { ok: true };
     } catch (err) {
-      console.warn("[usePWA] subscribePush failed:", err);
-      return false;
+      console.warn("[usePWA] pushManager.subscribe failed:", err);
+      return { ok: false, reason: "subscribe_error", error: err };
     }
   }, [churchId]);
 
-  // ── Push unsubscribe ───────────────────────────────────────────────────────
+  // ── Disable push notifications ────────────────────────────────────────────
   const unsubscribePush = useCallback(async () => {
     if (!pushSubscription) return;
-    await pushSubscription.unsubscribe();
+    try {
+      await pushSubscription.unsubscribe();
+    } catch (err) {
+      console.warn("[usePWA] unsubscribe failed:", err);
+    }
     setPushSubscription(null);
     if (churchId) {
       await supabase.from("push_subscriptions").delete().eq("church_id", churchId);
@@ -139,6 +179,7 @@ export function usePWA(churchId) {
 
   return {
     isInstalled,
+    swRegistration,
     pushPermission,
     pushSubscription,
     updateAvailable,
