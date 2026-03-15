@@ -137,16 +137,27 @@ function AppShell() {
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
-  // Re-fetch data when the user returns to the tab after being away.
-  // This is the second cause of "app not working" — the data in memory goes
-  // stale after long periods of inactivity (Supabase session token refreshed,
-  // but the in-memory groups/members/attendance are still from hours ago).
+  // Re-fetch data when the user returns to the tab, but only if data is
+  // more than 5 minutes old — prevents the loading bar flashing on every
+  // tab switch for users who are actively working.
   useEffect(() => {
+    let lastLoaded = Date.now();
+    const STALE_MS = 5 * 60 * 1000; // 5 minutes
+
+    const origLoadAll = loadAll;
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
-        loadAll();
+        if (Date.now() - lastLoaded > STALE_MS) {
+          lastLoaded = Date.now();
+          loadAll();
+        }
+      } else {
+        lastLoaded = Date.now();
       }
     };
+
+    // Record when initial load completes
+    lastLoaded = Date.now();
     document.addEventListener("visibilitychange", handleVisibility);
     return () => document.removeEventListener("visibilitychange", handleVisibility);
   }, [loadAll]);
@@ -160,12 +171,61 @@ function AppShell() {
   const editMember     = useCallback(async (id, u) => { const r = await updateMember(id, u); if (!r.error && r.data) setMembersRaw(p => p.map(x => x.id === id ? r.data : x)); return r; }, []);
   const removeMember   = useCallback(async id  => { const r = await deleteMember(id); if (!r.error) setMembersRaw(p => p.filter(x => x.id !== id)); return r; }, []);
 
+  // ── Offline queue helpers ─────────────────────────────────────────────────
+  const OFFLINE_KEY = "churchtrakr_offline_attendance";
+
+  const getOfflineQueue = useCallback(() => {
+    try { return JSON.parse(localStorage.getItem(OFFLINE_KEY) || "[]"); }
+    catch { return []; }
+  }, []);
+
+  const flushOfflineQueue = useCallback(async () => {
+    const queue = getOfflineQueue();
+    if (!queue.length) return;
+    const remaining = [];
+    for (const session of queue) {
+      const r = await saveAttendanceSession({ ...session, church_id: churchId });
+      if (r.error) { remaining.push(session); }
+      else if (r.data) {
+        const sessId = r.data.id;
+        const normalised = (session.records || []).map(rec => ({
+          memberId: rec.memberId || rec.member_id || null,
+          name: rec.name, present: rec.present,
+        }));
+        setAtHistory(h => {
+          const i = h.findIndex(s => s.id === sessId || s.id === session.id);
+          return i >= 0 ? h.map((s, j) => j === i ? { ...session, id: sessId, records: normalised } : s)
+                        : [...h, { ...session, id: sessId, records: normalised }];
+        });
+      }
+    }
+    localStorage.setItem(OFFLINE_KEY, JSON.stringify(remaining));
+    if (remaining.length < queue.length) {
+      showToast(`✅ ${queue.length - remaining.length} offline session${queue.length - remaining.length > 1 ? "s" : ""} synced`);
+    }
+  }, [churchId, getOfflineQueue, showToast]);
+
+  // Listen for SW telling us to flush the offline queue
+  useEffect(() => {
+    const handler = e => {
+      if (e.data?.type === "FLUSH_OFFLINE_QUEUE") flushOfflineQueue();
+    };
+    navigator.serviceWorker?.addEventListener("message", handler);
+    return () => navigator.serviceWorker?.removeEventListener("message", handler);
+  }, [flushOfflineQueue]);
+
+  // Flush on app startup and when coming back online
+  useEffect(() => {
+    const onOnline = () => { flushOfflineQueue(); };
+    window.addEventListener("online", onOnline);
+    flushOfflineQueue(); // attempt on mount too
+    return () => window.removeEventListener("online", onOnline);
+  }, [flushOfflineQueue]);
+
   const saveAttendance = useCallback(async session => {
     let r = await saveAttendanceSession({ ...session, church_id: churchId });
 
-    // If the call fails with an auth/permission error, the JWT may have expired.
-    // Force a token refresh and retry once — this eliminates the "save fails,
-    // refresh the page, works again" cycle users experience after long sessions.
+    // If auth error, refresh token and retry once
     if (r.error) {
       const msg = (r.error?.message || "").toLowerCase();
       const isAuthErr = msg.includes("jwt") || msg.includes("auth") ||
@@ -174,6 +234,31 @@ function AppShell() {
       if (isAuthErr) {
         await supabase.auth.refreshSession();
         r = await saveAttendanceSession({ ...session, church_id: churchId });
+      }
+    }
+
+    // If still failing (e.g. offline), save to local queue for later sync
+    if (r.error) {
+      const msg = (r.error?.message || "").toLowerCase();
+      const isNetworkErr = msg.includes("network") || msg.includes("fetch") ||
+                           msg.includes("failed to fetch") || !navigator.onLine;
+      if (isNetworkErr || !navigator.onLine) {
+        const queue = getOfflineQueue();
+        const exists = queue.findIndex(s => s.groupId === session.groupId && s.date === session.date);
+        if (exists >= 0) queue[exists] = { ...session, church_id: churchId };
+        else queue.push({ ...session, church_id: churchId });
+        localStorage.setItem(OFFLINE_KEY, JSON.stringify(queue));
+        // Register background sync if supported
+        navigator.serviceWorker?.ready.then(reg => {
+          reg.sync?.register("attendance-sync").catch(() => {});
+        });
+        // Still update local state so UI is responsive
+        const localSession = { ...session, id: session.id || `offline-${Date.now()}`, records: session.records };
+        setAtHistory(h => {
+          const i = h.findIndex(s => s.groupId === session.groupId && s.date === session.date);
+          return i >= 0 ? h.map((s, j) => j === i ? localSession : s) : [...h, localSession];
+        });
+        return { data: localSession, error: null, offline: true };
       }
     }
 
@@ -242,7 +327,32 @@ function AppShell() {
     });
   }, [churchId]);
 
-  const { showInstallBanner, promptInstall, dismissInstall, updateAvailable, applyUpdate } = usePWA(churchId);
+  const { showInstallBanner, promptInstall, dismissInstall, updateAvailable, applyUpdate,
+          pushPermission, pushSubscription, subscribePush } = usePWA(churchId);
+
+  // Show push prompt if: not yet granted, not denied, not snoozed recently
+  const [showPushPrompt, setShowPushPrompt] = useState(false);
+  useEffect(() => {
+    if (pushSubscription) return; // already subscribed
+    if (pushPermission === "denied") return; // blocked — can't ask
+    if (pushPermission === "granted" && !pushSubscription) return; // granted but no sub yet, will handle
+    const snoozedUntil = parseInt(localStorage.getItem("push_snooze_until") || "0");
+    if (Date.now() < snoozedUntil) return; // snoozed
+    // Show prompt after a short delay so it doesn't flash on load
+    const t = setTimeout(() => setShowPushPrompt(true), 3000);
+    return () => clearTimeout(t);
+  }, [pushPermission, pushSubscription]);
+
+  const handleEnableNotifications = async () => {
+    setShowPushPrompt(false);
+    await subscribePush();
+  };
+
+  const handleSnoozeNotifications = () => {
+    // Snooze for 3 days before asking again
+    localStorage.setItem("push_snooze_until", String(Date.now() + 3 * 24 * 60 * 60 * 1000));
+    setShowPushPrompt(false);
+  };
 
   const shared = {
     groups, members, attendanceHistory, firstTimers, ftAttendance, ftGroupId,
@@ -256,6 +366,40 @@ function AppShell() {
   return (
     <>
       <AppLayout>
+        {/* ── Push notification prompt ── */}
+        {showPushPrompt && (
+          <div style={{
+            background: "linear-gradient(135deg, #0f6e56, #1a3a2a)",
+            padding: "14px 16px",
+            display: "flex", alignItems: "center", gap: 12,
+            flexWrap: "wrap", justifyContent: "space-between",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 22, flexShrink: 0 }}>🔔</span>
+              <div>
+                <div style={{ fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: 13, color: "#fff" }}>
+                  Enable notifications
+                </div>
+                <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "rgba(255,255,255,.65)", marginTop: 1 }}>
+                  Get Sunday reminders, birthday alerts & absentee follow-ups
+                </div>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+              <button onClick={handleSnoozeNotifications} style={{
+                background: "rgba(255,255,255,.12)", border: "1px solid rgba(255,255,255,.2)",
+                color: "rgba(255,255,255,.7)", borderRadius: 8, padding: "7px 14px",
+                fontFamily: "'DM Sans',sans-serif", fontWeight: 600, fontSize: 12, cursor: "pointer",
+              }}>Later</button>
+              <button onClick={handleEnableNotifications} style={{
+                background: "#fff", border: "none", color: "#0f6e56",
+                borderRadius: 8, padding: "7px 16px",
+                fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: 12, cursor: "pointer",
+              }}>Enable</button>
+            </div>
+          </div>
+        )}
+
         {/* ── Update available banner ── */}
         {updateAvailable && (
           <div style={{

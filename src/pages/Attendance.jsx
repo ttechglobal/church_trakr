@@ -263,11 +263,15 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
     setSaveErr(""); setSaving(true);
     try {
       const session = { id: editingSessionId || undefined, groupId: selGrp.id, date: selDate, records: recs.map(r => ({ ...r })) };
-      const { data, error } = await withRetry(() => saveAttendance(session));
+      const { data, error, offline } = await withRetry(() => saveAttendance(session));
       if (error) { setSaveErr(error?.message || "Unknown error"); showToast("Save failed ❌"); return; }
       const savedId = data?.id || editingSessionId;
       if (!editingSessionId && savedId) setEditingSessionId(savedId);
-      showToast("Attendance saved ✅");
+      if (offline) {
+        showToast("📶 Saved offline — will sync when back online");
+      } else {
+        showToast("Attendance saved ✅");
+      }
       setStep("summary");
     } catch (e) {
       setSaveErr(e?.message || "Unexpected error");
