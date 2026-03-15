@@ -3,17 +3,16 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
     VitePWA({
+      // generateSW: Workbox writes the entire service worker for you.
+      // No custom sw.js needed — push handlers are added via additionalManifestEntries
+      // and importScripts below. This is the most reliable strategy.
       registerType: 'autoUpdate',
       injectRegister: 'auto',
-      strategies: 'injectManifest',
-      srcDir: 'src',
-      filename: 'sw.js',
 
       manifest: {
         name:             'ChurchTrakr',
@@ -33,7 +32,10 @@ export default defineConfig({
       },
 
       workbox: {
+        // Precache all build output
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+
+        // Network-first for Supabase — never serve stale data
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
@@ -53,14 +55,19 @@ export default defineConfig({
             },
           },
         ],
+
+        // Serve app shell for all navigation (offline routing works)
         navigateFallback: 'index.html',
         navigateFallbackDenylist: [/^\/api/, /^\/supabase/],
         cleanupOutdatedCaches: true,
+
+        // Push notification handlers injected directly into the generated SW
+        additionalManifestEntries: [],
+        importScripts: ['/push-handler.js'],
       },
 
       devOptions: {
         enabled: false,
-        type: 'module',
       },
     }),
   ],
