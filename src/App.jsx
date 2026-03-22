@@ -6,7 +6,7 @@ import { usePWA } from "./hooks/usePWA";
 import { AppLayout } from "./components/layout/AppLayout";
 import { Toast } from "./components/ui/Toast";
 
-import { supabase } from "./services/supabaseClient";
+import { supabase, ensureSession } from "./services/supabaseClient";
 import {
   fetchGroups, createGroup, updateGroup, deleteGroup,
   fetchMembers, createMember, createMembersBulk, updateMember, deleteMember,
@@ -162,14 +162,14 @@ function AppShell() {
     return () => document.removeEventListener("visibilitychange", handleVisibility);
   }, [loadAll]);
 
-  const addGroup    = useCallback(async g    => { const r = await createGroup({ ...g, church_id: churchId }); if (!r.error && r.data) setGroupsRaw(p => [...p, r.data]); return r; }, [churchId]);
-  const editGroup   = useCallback(async (id, u) => { const r = await updateGroup(id, u); if (!r.error && r.data) setGroupsRaw(p => p.map(x => x.id === id ? r.data : x)); return r; }, []);
-  const removeGroup = useCallback(async id  => { const r = await deleteGroup(id); if (!r.error) setGroupsRaw(p => p.filter(x => x.id !== id)); return r; }, []);
+  const addGroup    = useCallback(async g    => { await ensureSession(); const r = await createGroup({ ...g, church_id: churchId }); if (!r.error && r.data) setGroupsRaw(p => [...p, r.data]); return r; }, [churchId]);
+  const editGroup   = useCallback(async (id, u) => { await ensureSession(); const r = await updateGroup(id, u); if (!r.error && r.data) setGroupsRaw(p => p.map(x => x.id === id ? r.data : x)); return r; }, []);
+  const removeGroup = useCallback(async id  => { await ensureSession(); const r = await deleteGroup(id); if (!r.error) setGroupsRaw(p => p.filter(x => x.id !== id)); return r; }, []);
 
-  const addMember      = useCallback(async m    => { const r = await createMember({ ...m, church_id: churchId }); if (!r.error && r.data) setMembersRaw(p => [...p, r.data]); return r; }, [churchId]);
-  const bulkAddMembers = useCallback(async ms   => { const r = await createMembersBulk(ms.map(m => ({ ...m, church_id: churchId }))); if (!r.error && r.data) setMembersRaw(p => [...p, ...r.data]); return r; }, [churchId]);
-  const editMember     = useCallback(async (id, u) => { const r = await updateMember(id, u); if (!r.error && r.data) setMembersRaw(p => p.map(x => x.id === id ? r.data : x)); return r; }, []);
-  const removeMember   = useCallback(async id  => { const r = await deleteMember(id); if (!r.error) setMembersRaw(p => p.filter(x => x.id !== id)); return r; }, []);
+  const addMember      = useCallback(async m    => { await ensureSession(); const r = await createMember({ ...m, church_id: churchId }); if (!r.error && r.data) setMembersRaw(p => [...p, r.data]); return r; }, [churchId]);
+  const bulkAddMembers = useCallback(async ms   => { await ensureSession(); const r = await createMembersBulk(ms.map(m => ({ ...m, church_id: churchId }))); if (!r.error && r.data) setMembersRaw(p => [...p, ...r.data]); return r; }, [churchId]);
+  const editMember     = useCallback(async (id, u) => { await ensureSession(); const r = await updateMember(id, u); if (!r.error && r.data) setMembersRaw(p => p.map(x => x.id === id ? r.data : x)); return r; }, []);
+  const removeMember   = useCallback(async id  => { await ensureSession(); const r = await deleteMember(id); if (!r.error) setMembersRaw(p => p.filter(x => x.id !== id)); return r; }, []);
 
   // ── Offline queue helpers ─────────────────────────────────────────────────
   const OFFLINE_KEY = "churchtrakr_offline_attendance";
@@ -223,6 +223,9 @@ function AppShell() {
   }, [flushOfflineQueue]);
 
   const saveAttendance = useCallback(async session => {
+    // Always ensure session is valid before saving — this prevents the
+    // "stuck at saving" bug where the JWT isn't ready on first load
+    await ensureSession();
     let r = await saveAttendanceSession({ ...session, church_id: churchId });
 
     // If auth error, refresh token and retry once
@@ -278,6 +281,7 @@ function AppShell() {
   }, [churchId]);
 
   const addFirstTimer = useCallback(async ft => {
+    await ensureSession();
     const r = await createFirstTimer({ ...ft, church_id: churchId });
     if (!r.error && r.data) {
       setFirstTimersRaw(p => [r.data, ...p]);

@@ -193,6 +193,11 @@ function SessionSummary({ session, group, onBack, onContinueMarking }) {
 }
 
 // ── Retry helper ─────────────────────────────────────────────────────────────
+// Retries up to 3 times with increasing delay.
+// IMPORTANT: we no longer break early on permission/auth errors.
+// On first load, the Supabase session token may not be attached yet,
+// so the first attempt gets a permission error. Retrying after 800ms
+// gives the session time to restore and the second attempt succeeds.
 async function withRetry(fn, maxAttempts = 3, delayMs = 800) {
   let lastError;
   for (let i = 0; i < maxAttempts; i++) {
@@ -200,8 +205,6 @@ async function withRetry(fn, maxAttempts = 3, delayMs = 800) {
       const result = await fn();
       if (!result.error) return result;
       lastError = result.error;
-      const msg = lastError?.message || "";
-      if (msg.includes("permission") || msg.includes("policy") || msg.includes("auth")) break;
       if (i < maxAttempts - 1) await new Promise(r => setTimeout(r, delayMs * (i + 1)));
     } catch (e) {
       lastError = { message: e?.message || "Unexpected error" };

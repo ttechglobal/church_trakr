@@ -10,7 +10,10 @@ import { getAv, fmtDate } from "../lib/helpers";
 
 const CREDITS_PER_SMS = 10;
 
-// ── Retry wrapper for unreliable network ops ──────────────────────────────────
+// ── Retry wrapper — retries without breaking on auth errors ───────────────────
+// On first load the Supabase session may not be attached yet.
+// Removing the early break on permission errors lets the retry succeed
+// once the session catches up (usually within 800ms).
 async function withRetry(fn, maxAttempts = 3, delayMs = 800) {
   let lastError;
   for (let i = 0; i < maxAttempts; i++) {
@@ -18,8 +21,6 @@ async function withRetry(fn, maxAttempts = 3, delayMs = 800) {
       const result = await fn();
       if (!result.error) return result;
       lastError = result.error;
-      const msg = lastError?.message || "";
-      if (msg.includes("permission") || msg.includes("policy") || msg.includes("auth")) break;
       if (i < maxAttempts - 1) await new Promise(r => setTimeout(r, delayMs * (i + 1)));
     } catch (e) {
       lastError = { message: e?.message || "Unexpected error" };
