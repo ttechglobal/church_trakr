@@ -1,9 +1,6 @@
 // src/services/api/index.js
 import { supabase } from "../supabaseClient";
 
-// Simple one-shot wrapper — no retry loops that hide errors or cause hangs
-const run = (fn) => fn();
-
 // ── GROUPS ────────────────────────────────────────────────────────────────────
 export const fetchGroups = (churchId) =>
   supabase.from("groups").select("*").eq("church_id", churchId).order("name");
@@ -46,9 +43,6 @@ export const deleteMember = (id) =>
   supabase.from("members").delete().eq("id", id);
 
 // ── ATTENDANCE ────────────────────────────────────────────────────────────────
-// Fetches ALL attendance sessions in pages of 500 so churches with large
-// history don't silently lose old sessions. The previous hard .limit(200)
-// caused older records to disappear from reports and skewed attendance rates.
 export const fetchAttendance = async (churchId) => {
   const PAGE = 500;
   let allSessions = [];
@@ -79,7 +73,6 @@ export const saveAttendanceSession = async (session) => {
     let sessId = id || null;
 
     if (!sessId) {
-      // Look for an existing session for this group+date
       const { data: existing, error: e1 } = await supabase
         .from("attendance_sessions")
         .select("id")
@@ -109,7 +102,6 @@ export const saveAttendanceSession = async (session) => {
       }
     }
 
-    // Delete old records for this session
     const { error: delErr } = await supabase
       .from("attendance_records")
       .delete()
@@ -120,7 +112,6 @@ export const saveAttendanceSession = async (session) => {
       return { data: null, error: delErr };
     }
 
-    // Only save records with a definitive present value (true or false)
     const validRecs = (records || []).filter(r => r.present === true || r.present === false);
 
     if (validRecs.length > 0) {
@@ -141,7 +132,6 @@ export const saveAttendanceSession = async (session) => {
       }
     }
 
-    // Log to usage_logs for admin analytics (fire and forget)
     supabase.from("usage_logs").insert({
       church_id,
       event_type: "attendance_saved",
@@ -154,6 +144,50 @@ export const saveAttendanceSession = async (session) => {
   } catch (e) {
     console.error("[save] unexpected:", e);
     return { data: null, error: { message: e?.message || "Unexpected error" } };
+  }
+};
+
+// ── FOLLOW-UP (Absentee tracking) — persisted to Supabase ────────────────────
+// Stored in the churches table as a JSONB column `follow_up_data`.
+// Falls back gracefully if the column doesn't exist yet.
+// Schema: { [sessionId_memberId]: { reached: bool, note: string, updatedAt: string } }
+
+export const fetchFollowUpData = async (churchId) => {
+  try {
+    const { data, error } = await supabase
+      .from("churches")
+      .select("follow_up_data")
+      .eq("id", churchId)
+      .single();
+
+    if (error) {
+      // Column might not exist yet — fall back to localStorage
+      console.warn("[followup] fetch failed, using localStorage:", error.message);
+      try { return JSON.parse(localStorage.getItem("ct_followup") || "{}"); } catch { return {}; }
+    }
+
+    return data?.follow_up_data ?? {};
+  } catch {
+    try { return JSON.parse(localStorage.getItem("ct_followup") || "{}"); } catch { return {}; }
+  }
+};
+
+export const saveFollowUpData = async (churchId, data) => {
+  // Always persist to localStorage as immediate fallback
+  try { localStorage.setItem("ct_followup", JSON.stringify(data)); } catch {}
+
+  // Persist to Supabase so all users on the account see the same data
+  try {
+    const { error } = await supabase
+      .from("churches")
+      .update({ follow_up_data: data })
+      .eq("id", churchId);
+
+    if (error) {
+      console.warn("[followup] save to DB failed:", error.message);
+    }
+  } catch (e) {
+    console.warn("[followup] save unexpected:", e);
   }
 };
 

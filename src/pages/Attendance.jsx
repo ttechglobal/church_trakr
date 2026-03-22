@@ -200,21 +200,13 @@ function SessionSummary({ session, group, onBack, onContinueMarking }) {
 // On first load, the Supabase session token may not be attached yet,
 // so the first attempt gets a permission error. Retrying after 800ms
 // gives the session time to restore and the second attempt succeeds.
-async function withRetry(fn, maxAttempts = 3, delayMs = 800) {
-  let lastError;
-  for (let i = 0; i < maxAttempts; i++) {
-    try {
-      const result = await fn();
-      if (!result.error) return result;
-      lastError = result.error;
-      if (i < maxAttempts - 1) await new Promise(r => setTimeout(r, delayMs * (i + 1)));
-    } catch (e) {
-      lastError = { message: e?.message || "Unexpected error" };
-      if (i < maxAttempts - 1) await new Promise(r => setTimeout(r, delayMs * (i + 1)));
-    }
-  }
-  return { data: null, error: lastError };
-}
+// withRetry removed — saveAttendance in App.jsx already handles:
+// 1. ensureSession() before the call
+// 2. token refresh + one retry on auth errors
+// 3. offline queue on network errors
+// Adding a second retry layer here caused "saves on first tap don't stick"
+// because the stacked retries raced each other and the UI showed the
+// first attempt's error while the second was still running server-side.
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function Attendance({ groups, members, attendanceHistory, saveAttendance, showToast }) {
@@ -268,7 +260,7 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
     setSaveErr(""); setSaving(true);
     try {
       const session = { id: editingSessionId || undefined, groupId: selGrp.id, date: selDate, records: recs.map(r => ({ ...r })) };
-      const { data, error, offline } = await withRetry(() => saveAttendance(session));
+      const { data, error, offline } = await saveAttendance(session);
       if (error) { setSaveErr(error?.message || "Unknown error"); showToast("Save failed ❌"); return; }
       const savedId = data?.id || editingSessionId;
       if (!editingSessionId && savedId) setEditingSessionId(savedId);
