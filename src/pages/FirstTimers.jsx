@@ -417,7 +417,7 @@ export default function FirstTimers({
     <div className="page">
       <div style={{
         background: "linear-gradient(150deg, #1a3a2a 0%, #2d5a42 55%, #1e4a34 100%)",
-        padding: "max(env(safe-area-inset-top,32px),32px) 20px 20px",
+        padding: "max(env(safe-area-inset-top,32px),32px) 22px 24px",
         position: "relative", overflow: "hidden",
       }}>
         <div style={{ position:"absolute", top:-40, right:-30, width:160, height:160,

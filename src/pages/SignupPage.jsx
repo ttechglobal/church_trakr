@@ -274,9 +274,11 @@ export default function SignupPage() {
         </div>
 
         {err && (
-          <div style={{ background:"#fef2f2", border:"1px solid #fecaca", borderRadius:10,
+          <div style={{ background:"#fef2f2", border:"1.5px solid #fecaca", borderRadius:10,
             padding:"12px 14px", fontFamily:S, fontSize:13, color:"#dc2626",
-            fontWeight:500, marginBottom:16 }}>{err}</div>
+            fontWeight:600, marginBottom:16, display:"flex", alignItems:"center", gap:8 }}>
+            <span>⚠️</span> {err}
+          </div>
         )}
 
         <button onClick={submit} disabled={busy} style={{

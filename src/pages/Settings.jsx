@@ -463,25 +463,21 @@ export default function Settings({ showToast }) {
     <div className="page">
       <div style={{
         background: "linear-gradient(150deg, #1a3a2a 0%, #2d5a42 55%, #1e4a34 100%)",
-        padding: "max(env(safe-area-inset-top,32px),32px) 20px 20px",
+        padding: "max(env(safe-area-inset-top,32px),32px) 22px 24px",
         position: "relative", overflow: "hidden",
       }}>
         <div style={{ position:"absolute", top:-40, right:-30, width:160, height:160,
           borderRadius:"50%", background:"rgba(255,255,255,.04)", pointerEvents:"none" }} />
-        <div style={{ fontFamily:"'Playfair Display',serif", fontSize:26, fontWeight:700, color:"#fff" }}>Settings</div>
-        <div style={{ fontSize:13, color:"rgba(255,255,255,.6)", marginTop:4 }}>Manage your church account</div>
+        <div style={{ fontFamily:"'Playfair Display',serif", fontSize:27, fontWeight:800, color:"#fff", letterSpacing:"-.015em" }}>Settings</div>
+        <div style={{ fontSize:13, color:"rgba(255,255,255,.52)", marginTop:5, fontWeight:500 }}>Manage your church account</div>
       </div>
 
       <div className="pc">
         {/* Tab switcher */}
-        <div style={{ display: "flex", background: "var(--surface2)", borderRadius: 12, padding: 4, marginBottom: 20 }}>
-          {[["general", "⚙️ General"], ["templates", "📄 SMS Templates"]].map(([key, label]) => (
-            <button key={key} onClick={() => setActiveTab(key)}
-              style={{ flex: 1, padding: "10px 4px", borderRadius: 9, border: "none", cursor: "pointer",
-                fontSize: 13, fontWeight: 600, fontFamily: "'DM Sans',sans-serif",
-                background: activeTab === key ? "var(--surface)" : "transparent",
-                color: activeTab === key ? "var(--brand)" : "var(--muted)",
-                boxShadow: activeTab === key ? "var(--sh)" : "none", transition: "all .15s" }}>
+        <div className="tabs" style={{ marginBottom: 20 }}>
+          {[["general", "⚙️ General"], ["templates", "📄 Templates"]].map(([key, label]) => (
+            <button key={key} className={`tab ${activeTab === key ? "act" : ""}`}
+              onClick={() => setActiveTab(key)}>
               {label}
             </button>
           ))}
@@ -492,7 +488,7 @@ export default function Settings({ showToast }) {
         ) : (
           <>
             {/* Church hero card */}
-            <div style={{ background: "linear-gradient(135deg, var(--brand), #7c3aed)", borderRadius: 18, padding: "20px 16px", marginBottom: 24, display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ background: "linear-gradient(135deg, var(--brand), var(--brand-mid))", borderRadius: 18, padding: "20px 16px", marginBottom: 24, display: "flex", alignItems: "center", gap: 14 }}>
               <div style={{ width: 52, height: 52, borderRadius: "50%", background: "rgba(255,255,255,.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>⛪</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: 16, color: "#fff", lineHeight: 1.3, wordBreak: "break-word" }}>{churchName}</div>

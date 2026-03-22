@@ -33,48 +33,99 @@ import CreditsPage     from "./pages/messaging/CreditsPage";
 import MessageHistory  from "./pages/messaging/MessageHistory";
 import SuperAdmin      from "./pages/SuperAdmin";
 
-// ── Loading spinner ──────────────────────────────────────────────────────────
+// ── Loading screen ────────────────────────────────────────────────────────────
 function LoadingScreen() {
   return (
     <div style={{
-      minHeight:"100vh", display:"flex", flexDirection:"column",
-      alignItems:"center", justifyContent:"center",
-      gap:16,
-      background:"linear-gradient(150deg, #1a3a2a 0%, #2d5a42 60%, #1e4a34 100%)",
+      minHeight: "100vh", display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center", gap: 20,
+      background: "linear-gradient(150deg, #1a3a2a 0%, #2d5a42 60%, #1e4a34 100%)",
     }}>
-      <div style={{ fontFamily:"'Playfair Display',Georgia,serif", fontSize:"1.4rem",
-        fontWeight:700, color:"rgba(255,255,255,.9)", letterSpacing:"-.01em" }}>
-        ChurchTrakr
+      {/* Logo */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{
+          width: 44, height: 44, borderRadius: 13,
+          background: "rgba(255,255,255,.14)", border: "1px solid rgba(255,255,255,.18)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontFamily: "'Playfair Display', serif", fontWeight: 800, fontSize: 17,
+          color: "#e8d5a0",
+        }}>CT</div>
+        <span style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700,
+          fontSize: "1.4rem", color: "rgba(255,255,255,.92)", letterSpacing: "-.01em" }}>
+          ChurchTrakr
+        </span>
       </div>
+      {/* Spinner */}
       <div style={{
-        width:32, height:32,
-        border:"3px solid rgba(255,255,255,.15)",
-        borderTop:"3px solid rgba(201,168,76,.8)",
-        borderRadius:"50%",
-        animation:"spin 0.8s linear infinite",
+        width: 28, height: 28,
+        border: "2.5px solid rgba(255,255,255,.12)",
+        borderTop: "2.5px solid rgba(201,168,76,.75)",
+        borderRadius: "50%",
+        animation: "spin 0.75s linear infinite",
       }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
 
-// ── First Timers group ───────────────────────────────────────────────────────
+// ── Banner component ─────────────────────────────────────────────────────────
+function Banner({ icon, title, subtitle, primaryAction, primaryLabel, secondaryAction, secondaryLabel, gradient }) {
+  return (
+    <div style={{
+      background: gradient || "linear-gradient(135deg, #1a3a2a, #2d5a42)",
+      padding: "13px 18px",
+      display: "flex", alignItems: "center", gap: 12,
+      flexWrap: "wrap", justifyContent: "space-between",
+      borderBottom: "1px solid rgba(255,255,255,.06)",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ fontSize: 20, flexShrink: 0 }}>{icon}</span>
+        <div>
+          <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: 13, color: "#fff" }}>
+            {title}
+          </div>
+          {subtitle && (
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: "rgba(255,255,255,.58)", marginTop: 1 }}>
+              {subtitle}
+            </div>
+          )}
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+        {secondaryAction && (
+          <button onClick={secondaryAction} style={{
+            background: "rgba(255,255,255,.1)", border: "1px solid rgba(255,255,255,.18)",
+            color: "rgba(255,255,255,.68)", borderRadius: 8, padding: "7px 13px",
+            fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: 12, cursor: "pointer",
+          }}>{secondaryLabel}</button>
+        )}
+        {primaryAction && (
+          <button onClick={primaryAction} style={{
+            background: "#fff", border: "none", color: "#1a3a2a",
+            borderRadius: 8, padding: "7px 16px",
+            fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: 12, cursor: "pointer",
+          }}>{primaryLabel}</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const FT_GROUP_NAME = "First Timers";
 
-// ── App shell (authenticated) ────────────────────────────────────────────────
 function AppShell() {
   const { church, signOut, updateChurch } = useAuth();
   const churchId = church.id;
 
-  const [groups,            setGroupsRaw]   = useState([]);
-  const [members,           setMembersRaw]  = useState([]);
-  const [attendanceHistory, setAtHistory]   = useState([]);
+  const [groups,            setGroupsRaw]      = useState([]);
+  const [members,           setMembersRaw]     = useState([]);
+  const [attendanceHistory, setAtHistory]      = useState([]);
   const [firstTimers,       setFirstTimersRaw] = useState([]);
-  const [ftAttendance,      setFtAttRaw]    = useState({});
-  const [ftGroupId,         setFtGroupId]   = useState(null);
-  const [toast,             setToast]       = useState(null);
-  const [dataLoading,       setDataLoading] = useState(true);
-  const [dataError,         setDataError]   = useState(null);
+  const [ftAttendance,      setFtAttRaw]       = useState({});
+  const [ftGroupId,         setFtGroupId]      = useState(null);
+  const [toast,             setToast]          = useState(null);
+  const [dataLoading,       setDataLoading]    = useState(true);
+  const [dataError,         setDataError]      = useState(null);
 
   const showToast = useCallback((msg) => setToast(msg), []);
 
@@ -137,31 +188,20 @@ function AppShell() {
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
-  // Re-fetch data when the user returns to the tab, but only if data is
-  // more than 5 minutes old — prevents the loading bar flashing on every
-  // tab switch for users who are actively working.
   useEffect(() => {
     let lastLoaded = Date.now();
-    const STALE_MS = 5 * 60 * 1000; // 5 minutes
-
-    const origLoadAll = loadAll;
+    const STALE_MS = 5 * 60 * 1000;
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
-        if (Date.now() - lastLoaded > STALE_MS) {
-          lastLoaded = Date.now();
-          loadAll();
-        }
-      } else {
-        lastLoaded = Date.now();
-      }
+        if (Date.now() - lastLoaded > STALE_MS) { lastLoaded = Date.now(); loadAll(); }
+      } else { lastLoaded = Date.now(); }
     };
-
-    // Record when initial load completes
     lastLoaded = Date.now();
     document.addEventListener("visibilitychange", handleVisibility);
     return () => document.removeEventListener("visibilitychange", handleVisibility);
   }, [loadAll]);
 
+  // ── CRUD helpers ──────────────────────────────────────────────────────────
   const addGroup    = useCallback(async g    => { await ensureSession(); const r = await createGroup({ ...g, church_id: churchId }); if (!r.error && r.data) setGroupsRaw(p => [...p, r.data]); return r; }, [churchId]);
   const editGroup   = useCallback(async (id, u) => { await ensureSession(); const r = await updateGroup(id, u); if (!r.error && r.data) setGroupsRaw(p => p.map(x => x.id === id ? r.data : x)); return r; }, []);
   const removeGroup = useCallback(async id  => { await ensureSession(); const r = await deleteGroup(id); if (!r.error) setGroupsRaw(p => p.filter(x => x.id !== id)); return r; }, []);
@@ -171,7 +211,7 @@ function AppShell() {
   const editMember     = useCallback(async (id, u) => { await ensureSession(); const r = await updateMember(id, u); if (!r.error && r.data) setMembersRaw(p => p.map(x => x.id === id ? r.data : x)); return r; }, []);
   const removeMember   = useCallback(async id  => { await ensureSession(); const r = await deleteMember(id); if (!r.error) setMembersRaw(p => p.filter(x => x.id !== id)); return r; }, []);
 
-  // ── Offline queue helpers ─────────────────────────────────────────────────
+  // ── Offline queue ─────────────────────────────────────────────────────────
   const OFFLINE_KEY = "churchtrakr_offline_attendance";
 
   const getOfflineQueue = useCallback(() => {
@@ -205,30 +245,22 @@ function AppShell() {
     }
   }, [churchId, getOfflineQueue, showToast]);
 
-  // Listen for SW telling us to flush the offline queue
   useEffect(() => {
-    const handler = e => {
-      if (e.data?.type === "FLUSH_OFFLINE_QUEUE") flushOfflineQueue();
-    };
+    const handler = e => { if (e.data?.type === "FLUSH_OFFLINE_QUEUE") flushOfflineQueue(); };
     navigator.serviceWorker?.addEventListener("message", handler);
     return () => navigator.serviceWorker?.removeEventListener("message", handler);
   }, [flushOfflineQueue]);
 
-  // Flush on app startup and when coming back online
   useEffect(() => {
-    const onOnline = () => { flushOfflineQueue(); };
+    const onOnline = () => flushOfflineQueue();
     window.addEventListener("online", onOnline);
-    flushOfflineQueue(); // attempt on mount too
+    flushOfflineQueue();
     return () => window.removeEventListener("online", onOnline);
   }, [flushOfflineQueue]);
 
   const saveAttendance = useCallback(async session => {
-    // Always ensure session is valid before saving — this prevents the
-    // "stuck at saving" bug where the JWT isn't ready on first load
     await ensureSession();
     let r = await saveAttendanceSession({ ...session, church_id: churchId });
-
-    // If auth error, refresh token and retry once
     if (r.error) {
       const msg = (r.error?.message || "").toLowerCase();
       const isAuthErr = msg.includes("jwt") || msg.includes("auth") ||
@@ -239,8 +271,6 @@ function AppShell() {
         r = await saveAttendanceSession({ ...session, church_id: churchId });
       }
     }
-
-    // If still failing (e.g. offline), save to local queue for later sync
     if (r.error) {
       const msg = (r.error?.message || "").toLowerCase();
       const isNetworkErr = msg.includes("network") || msg.includes("fetch") ||
@@ -251,11 +281,7 @@ function AppShell() {
         if (exists >= 0) queue[exists] = { ...session, church_id: churchId };
         else queue.push({ ...session, church_id: churchId });
         localStorage.setItem(OFFLINE_KEY, JSON.stringify(queue));
-        // Register background sync if supported
-        navigator.serviceWorker?.ready.then(reg => {
-          reg.sync?.register("attendance-sync").catch(() => {});
-        });
-        // Still update local state so UI is responsive
+        navigator.serviceWorker?.ready.then(reg => { reg.sync?.register("attendance-sync").catch(() => {}); });
         const localSession = { ...session, id: session.id || `offline-${Date.now()}`, records: session.records };
         setAtHistory(h => {
           const i = h.findIndex(s => s.groupId === session.groupId && s.date === session.date);
@@ -264,12 +290,10 @@ function AppShell() {
         return { data: localSession, error: null, offline: true };
       }
     }
-
     if (!r.error && r.data) {
       const sessId = r.data.id;
       const normalised = (session.records || []).map(rec => ({
-        memberId: rec.memberId || rec.member_id || null,
-        name: rec.name, present: rec.present,
+        memberId: rec.memberId || rec.member_id || null, name: rec.name, present: rec.present,
       }));
       const saved = { ...session, id: sessId, records: normalised };
       setAtHistory(h => {
@@ -278,7 +302,7 @@ function AppShell() {
       });
     }
     return r;
-  }, [churchId]);
+  }, [churchId, getOfflineQueue]);
 
   const addFirstTimer = useCallback(async ft => {
     await ensureSession();
@@ -334,26 +358,19 @@ function AppShell() {
   const { showInstallBanner, promptInstall, dismissInstall, updateAvailable, applyUpdate,
           pushPermission, pushSubscription, subscribePush } = usePWA(churchId);
 
-  // Show push prompt if: not yet granted, not denied, not snoozed recently
   const [showPushPrompt, setShowPushPrompt] = useState(false);
   useEffect(() => {
-    if (pushSubscription) return; // already subscribed
-    if (pushPermission === "denied") return; // blocked — can't ask
-    if (pushPermission === "granted" && !pushSubscription) return; // granted but no sub yet, will handle
+    if (pushSubscription) return;
+    if (pushPermission === "denied") return;
+    if (pushPermission === "granted" && !pushSubscription) return;
     const snoozedUntil = parseInt(localStorage.getItem("push_snooze_until") || "0");
-    if (Date.now() < snoozedUntil) return; // snoozed
-    // Show prompt after a short delay so it doesn't flash on load
+    if (Date.now() < snoozedUntil) return;
     const t = setTimeout(() => setShowPushPrompt(true), 3000);
     return () => clearTimeout(t);
   }, [pushPermission, pushSubscription]);
 
-  const handleEnableNotifications = async () => {
-    setShowPushPrompt(false);
-    await subscribePush();
-  };
-
+  const handleEnableNotifications = async () => { setShowPushPrompt(false); await subscribePush(); };
   const handleSnoozeNotifications = () => {
-    // Snooze for 3 days before asking again
     localStorage.setItem("push_snooze_until", String(Date.now() + 3 * 24 * 60 * 60 * 1000));
     setShowPushPrompt(false);
   };
@@ -370,109 +387,50 @@ function AppShell() {
   return (
     <>
       <AppLayout>
-        {/* ── Push notification prompt ── */}
+        {/* ── Banners ── */}
         {showPushPrompt && (
-          <div style={{
-            background: "linear-gradient(135deg, #0f6e56, #1a3a2a)",
-            padding: "14px 16px",
-            display: "flex", alignItems: "center", gap: 12,
-            flexWrap: "wrap", justifyContent: "space-between",
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontSize: 22, flexShrink: 0 }}>🔔</span>
-              <div>
-                <div style={{ fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: 13, color: "#fff" }}>
-                  Enable notifications
-                </div>
-                <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "rgba(255,255,255,.65)", marginTop: 1 }}>
-                  Get Sunday reminders, birthday alerts & absentee follow-ups
-                </div>
-              </div>
-            </div>
-            <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-              <button onClick={handleSnoozeNotifications} style={{
-                background: "rgba(255,255,255,.12)", border: "1px solid rgba(255,255,255,.2)",
-                color: "rgba(255,255,255,.7)", borderRadius: 8, padding: "7px 14px",
-                fontFamily: "'DM Sans',sans-serif", fontWeight: 600, fontSize: 12, cursor: "pointer",
-              }}>Later</button>
-              <button onClick={handleEnableNotifications} style={{
-                background: "#fff", border: "none", color: "#0f6e56",
-                borderRadius: 8, padding: "7px 16px",
-                fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: 12, cursor: "pointer",
-              }}>Enable</button>
-            </div>
-          </div>
+          <Banner
+            icon="🔔" title="Enable notifications"
+            subtitle="Sunday reminders, birthday alerts & absentee follow-ups"
+            primaryAction={handleEnableNotifications} primaryLabel="Enable"
+            secondaryAction={handleSnoozeNotifications} secondaryLabel="Later"
+            gradient="linear-gradient(135deg, #0f6e56, #1a3a2a)"
+          />
+        )}
+        {updateAvailable && (
+          <Banner
+            icon="✨" title="A new version of ChurchTrakr is ready"
+            primaryAction={applyUpdate} primaryLabel="Update now"
+          />
+        )}
+        {showInstallBanner && (
+          <Banner
+            icon="📱" title="Add ChurchTrakr to your home screen"
+            subtitle="Works offline · Faster access · No app store needed"
+            primaryAction={promptInstall} primaryLabel="Install"
+            secondaryAction={dismissInstall} secondaryLabel="Not now"
+          />
         )}
 
-        {/* ── Update available banner ── */}
-        {updateAvailable && (
+        {/* ── Error banner ── */}
+        {dataError && (
           <div style={{
-            background: "#1a3a2a", padding: "10px 16px",
+            background: "#fef2f2", borderBottom: "2px solid #fecaca",
+            padding: "11px 22px", fontSize: 13, color: "#dc2626",
             display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
           }}>
-            <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#fff" }}>
-              ✨ A new version of ChurchTrakr is ready
-            </span>
-            <button onClick={applyUpdate} style={{
-              background: "#fff", border: "none", color: "#1a3a2a",
-              borderRadius: 8, padding: "6px 14px",
-              fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: 12, cursor: "pointer",
-            }}>Update now</button>
+            <span style={{ fontWeight: 500 }}>⚠️ {dataError}</span>
+            <button onClick={loadAll} style={{
+              background: "#dc2626", color: "#fff", border: "none",
+              borderRadius: 7, padding: "6px 14px", cursor: "pointer",
+              fontSize: 12, fontWeight: 700,
+            }}>Retry</button>
           </div>
         )}
 
-        {/* ── Install banner ── */}
-        {showInstallBanner && (
-          <div style={{
-            background: "linear-gradient(135deg, #1a3a2a, #2d5a42)",
-            padding: "12px 16px",
-            display: "flex", alignItems: "center", gap: 12,
-            flexWrap: "wrap", justifyContent: "space-between",
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(255,255,255,.15)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: 12, color: "#fff", flexShrink: 0 }}>CT</div>
-              <div>
-                <div style={{ fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: 13, color: "#fff" }}>
-                  Add ChurchTrakr to your home screen
-                </div>
-                <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: "rgba(255,255,255,.6)", marginTop: 1 }}>
-                  Works offline · Faster access · No app store needed
-                </div>
-              </div>
-            </div>
-            <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-              <button onClick={dismissInstall} style={{
-                background: "rgba(255,255,255,.12)", border: "1px solid rgba(255,255,255,.2)",
-                color: "rgba(255,255,255,.7)", borderRadius: 8, padding: "7px 14px",
-                fontFamily: "'DM Sans',sans-serif", fontWeight: 600, fontSize: 12, cursor: "pointer",
-              }}>Not now</button>
-              <button onClick={promptInstall} style={{
-                background: "#fff", border: "none", color: "#1a3a2a",
-                borderRadius: 8, padding: "7px 16px",
-                fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: 12, cursor: "pointer",
-              }}>Install</button>
-            </div>
-          </div>
-        )}
-        {dataError && (
-          <div style={{ background:"#fce8e8", borderBottom:"2px solid #f5c8c8",
-            padding:"10px 20px", fontSize:13, color:"#8a2020",
-            display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
-            <span>⚠️ {dataError}</span>
-            <button onClick={loadAll} style={{ background:"#8a2020", color:"#fff",
-              border:"none", borderRadius:6, padding:"5px 12px", cursor:"pointer",
-              fontSize:12, fontWeight:600 }}>Retry</button>
-          </div>
-        )}
-        {dataLoading && (
-          <div style={{ height:3,
-            background:"linear-gradient(90deg,var(--brand),var(--brand-light),var(--brand))",
-            backgroundSize:"200% 100%", animation:"bar 1.2s infinite linear" }}>
-            <style>{`@keyframes bar { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }`}</style>
-          </div>
-        )}
+        {/* ── Progress bar ── */}
+        {dataLoading && <div className="progress-bar" />}
+
         <Routes>
           <Route path="/"                  element={<Dashboard      {...shared} />} />
           <Route path="/groups/*"          element={<Groups         {...shared} />} />
@@ -494,24 +452,16 @@ function AppShell() {
   );
 }
 
-// ── Root ─────────────────────────────────────────────────────────────────────
 function Root() {
   const { loading, isAuthenticated, church } = useAuth();
 
-  // SuperAdmin handles its own auth — never wrap in AppLayout
   if (window.location.pathname.startsWith("/superadmin")) return <SuperAdmin />;
-
   if (loading) return <LoadingScreen />;
+  if (isAuthenticated && church) return <AppShell />;
 
-  if (isAuthenticated && church) {
-    // Authenticated — app shell handles all /app routes
-    return <AppShell />;
-  }
-
-  // Unauthenticated — show landing + auth pages
   return (
     <Routes>
-      <Route path="/"       element={<LandingPage />} />
+      <Route path="/"           element={<LandingPage />} />
       <Route path="/login"      element={<LoginPage />} />
       <Route path="/signup"     element={<SignupPage />} />
       <Route path="/forgot"     element={<ForgotPage />} />

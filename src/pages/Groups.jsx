@@ -113,7 +113,7 @@ function AddMemberModal({ onClose, onAdd, groupName }) {
           <div className="fg"><label className="fl">First Name *</label><input className="fi" name="firstName" placeholder="Adaeze" value={f.firstName} onChange={h} autoFocus /></div>
           <div className="fg"><label className="fl">Last Name</label><input className="fi" name="lastName" placeholder="Okafor" value={f.lastName} onChange={h} /></div>
         </div>
-        <div className="fg"><label className="fl">Phone Number <span style={{ fontWeight: 400, color: "var(--muted)" }}>optional</span></label><input className="fi" name="phone" placeholder="08012345678" value={f.phone} onChange={h} /></div>
+        <div className="fg"><label className="fl">Phone Number <span style={{ fontWeight: 400, color: "var(--muted)" }}>optional</span></label><input className="fi" name="phone" placeholder="08012345678" value={f.phone} onChange={h} inputMode="tel" /></div>
         <div className="fg"><label className="fl">Address <span style={{ fontWeight: 400, color: "var(--muted)" }}>optional</span></label><input className="fi" name="address" placeholder="14 Lagos Rd, Ikeja" value={f.address} onChange={h} /></div>
         <div className="fg"><label className="fl">Birthday <span style={{ fontWeight: 400, color: "var(--muted)" }}>optional</span></label><input className="fi" name="birthday" type="date" value={f.birthday} onChange={h} /></div>
         {err && <p style={{ color: "var(--danger)", fontSize: 13 }}>{err}</p>}
@@ -692,7 +692,7 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
   const openBdaySms = (targets) => { setBdayTargets(targets); setBdaySmsOpen(true); };
 
   const gm = members.filter(m => (m.groupIds || []).includes(group.id));
-  const filtered = gm.filter(m => m.name.toLowerCase().includes(search.toLowerCase()) || m.phone.includes(search));
+  const filtered = gm.filter(m => m.name.toLowerCase().includes(search.toLowerCase()) || (m.phone || "").includes(search));
   const sessions = attendanceHistory.filter(h => h.groupId === group.id).sort((a, b) => b.date.localeCompare(a.date));
   const avg = sessions.length > 0
     ? Math.round(sessions.reduce((s, x) => s + (x.records.filter(r => r.present).length / (x.records.length || 1)), 0) / sessions.length * 100)
@@ -806,26 +806,42 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
 
   return (
     <div className="page">
-      <div className="ph">
-        <button className="btn bg" style={{ marginBottom: 14, padding: "8px 14px" }} onClick={onBack}><ChevL /> All Groups</button>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <h1 style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{group.name}</h1>
-            <p>Leader: {group.leader || "—"}</p>
+      <div style={{
+        background:"linear-gradient(150deg, #1a3a2a 0%, #2d5a42 55%, #1e4a34 100%)",
+        padding:"max(env(safe-area-inset-top,32px),32px) 22px 24px",
+        position:"relative", overflow:"hidden",
+      }}>
+        <div style={{ position:"absolute", top:-40, right:-30, width:160, height:160, borderRadius:"50%", background:"rgba(255,255,255,.04)", pointerEvents:"none" }} />
+        <div style={{ position:"relative" }}>
+          <button onClick={onBack} style={{
+            background:"rgba(255,255,255,.14)", border:"1px solid rgba(255,255,255,.2)",
+            color:"#fff", borderRadius:10, padding:"7px 14px", cursor:"pointer",
+            fontFamily:"'DM Sans',sans-serif", fontWeight:600, fontSize:13.5,
+            marginBottom:16, display:"inline-flex", alignItems:"center", gap:6,
+          }}><ChevL /> All Groups</button>
+          <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:10 }}>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontFamily:"'Playfair Display',serif", fontSize:25, fontWeight:800, color:"#fff", letterSpacing:"-.015em", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{group.name}</div>
+              <div style={{ fontSize:13, color:"rgba(255,255,255,.52)", marginTop:5 }}>
+                Leader: {group.leader || "—"}
+              </div>
+            </div>
+            <button
+              onClick={() => { setEditGroupF({ name: group.name, leader: group.leader || "" }); setEditGroupModal(true); }}
+              style={{
+                background:"rgba(255,255,255,.14)", border:"1px solid rgba(255,255,255,.2)",
+                color:"rgba(255,255,255,.85)", borderRadius:10, padding:"8px 14px", cursor:"pointer",
+                fontFamily:"'DM Sans',sans-serif", fontWeight:600, fontSize:13,
+                display:"inline-flex", alignItems:"center", gap:6, flexShrink:0,
+              }}
+            ><EditIco s={14} /> Edit</button>
           </div>
-          <button
-            className="btn bg"
-            style={{ padding: "8px 12px", fontSize: 13, flexShrink: 0, display: "flex", alignItems: "center", gap: 6 }}
-            onClick={() => { setEditGroupF({ name: group.name, leader: group.leader || "" }); setEditGroupModal(true); }}
-          >
-            <EditIco s={14} /> Edit
-          </button>
         </div>
       </div>
-      <div style={{ padding: "0 20px 12px" }}>
+      <div style={{ padding: "0 22px 12px" }}>
         <div className="smbar" style={{ marginBottom: 16 }}>
           {[["Members", gm.length, "var(--brand)"], ["Avg Attend.", avg + "%", "var(--success)"], ["Sessions", sessions.length, "var(--accent)"]].map(([l, v, c]) => (
-            <div key={l} className="smbox"><div style={{ fontFamily: "'Playfair Display',serif", fontSize: 26, fontWeight: 700, color: c }}>{v}</div><div style={{ fontSize: 12, color: "var(--muted)" }}>{l}</div></div>
+            <div key={l} className="smbox" style={{ border:"1px solid var(--border)" }}><div style={{ fontFamily: "'Playfair Display',serif", fontSize: 26, fontWeight: 800, color: c, letterSpacing:"-.02em" }}>{v}</div><div style={{ fontSize: 11, color: "var(--muted)", fontWeight:600, marginTop:3, textTransform:"uppercase", letterSpacing:".04em" }}>{l}</div></div>
           ))}
         </div>
 
@@ -1204,24 +1220,37 @@ export default function Groups({ groups, addGroup, editGroup, removeGroup, membe
 
   return (
     <div className="page">
-      <div className="ph">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      <div style={{
+        background:"linear-gradient(150deg, #1a3a2a 0%, #2d5a42 55%, #1e4a34 100%)",
+        padding:"max(env(safe-area-inset-top,32px),32px) 22px 24px",
+        position:"relative", overflow:"hidden",
+      }}>
+        <div style={{ position:"absolute", top:-40, right:-30, width:160, height:160, borderRadius:"50%", background:"rgba(255,255,255,.04)", pointerEvents:"none" }} />
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", position:"relative" }}>
           <div>
-            <h1>Groups</h1>
-            <p>{groups.length} active group{groups.length !== 1 ? "s" : ""}</p>
+            <div style={{ fontFamily:"'Playfair Display',serif", fontSize:27, fontWeight:800, color:"#fff", letterSpacing:"-.015em" }}>Groups</div>
+            <div style={{ fontSize:13, color:"rgba(255,255,255,.52)", marginTop:5 }}>
+              {groups.length} cell group{groups.length !== 1 ? "s" : ""}
+            </div>
           </div>
-          <button className="btn bp" onClick={() => setAddModal(true)}><PlusIco /> New Group</button>
+          <button onClick={() => setAddModal(true)} style={{
+            background:"rgba(255,255,255,.16)", border:"1px solid rgba(255,255,255,.22)",
+            color:"#fff", borderRadius:12, padding:"10px 16px", cursor:"pointer",
+            fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:13.5,
+            display:"inline-flex", alignItems:"center", gap:7, transition:"background .15s",
+          }}><PlusIco /> New Group</button>
         </div>
       </div>
 
       <div className="pc">
         {totalBdaysToday > 0 && (
-          <div style={{ background: "linear-gradient(135deg,#fff8e6,#fff0cc)", border: "1.5px solid var(--accent)", borderRadius: 14, padding: "14px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: 28 }}>🎂</span>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 14, color: "#8a5a00" }}>{totalBdaysToday} birthday{totalBdaysToday !== 1 ? "s" : ""} today!</div>
-              <div style={{ fontSize: 13, color: "#8a5a00" }}>Open a group to send birthday greetings</div>
+          <div style={{ background: "linear-gradient(135deg,#fff8e6,#fff0cc)", border: "1.5px solid var(--accent)", borderRadius: 16, padding: "14px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12, boxShadow: "0 2px 12px rgba(201,168,76,.15)" }}>
+            <div style={{ fontSize: 32, flexShrink:0, lineHeight:1 }}>🎂</div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontWeight: 800, fontSize: 14, color: "#8a5a00" }}>{totalBdaysToday} birthday{totalBdaysToday !== 1 ? "s" : ""} today!</div>
+              <div style={{ fontSize: 12.5, color: "#a06b00", marginTop:2 }}>Open a group to send birthday greetings</div>
             </div>
+            <svg width="7" height="14" viewBox="0 0 7 14" fill="none"><path d="M1 1l5 6-5 6" stroke="#a06b00" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </div>
         )}
 
@@ -1243,7 +1272,14 @@ export default function Groups({ groups, addGroup, editGroup, removeGroup, membe
             </div>
           );
         })}
-        {groups.length === 0 && <div className="empty"><div className="empty-ico">👥</div><p>No groups yet</p></div>}
+        {groups.length === 0 && (
+          <div className="empty" style={{ marginTop:16 }}>
+            <div className="empty-ico">👥</div>
+            <p style={{ fontWeight:700, fontSize:15, color:"var(--text)", marginBottom:6 }}>No groups yet</p>
+            <p style={{ fontSize:13, color:"var(--muted)", marginBottom:18 }}>Create your first cell group to get started</p>
+            <button className="btn bp" style={{ borderRadius:12 }} onClick={() => setAddModal(true)}><PlusIco /> Create First Group</button>
+          </div>
+        )}
       </div>
 
       {addModal && (
@@ -1262,16 +1298,20 @@ export default function Groups({ groups, addGroup, editGroup, removeGroup, membe
       )}
       {delConfirm && (
         <Modal title="Delete Group?" onClose={() => { if (!deleting) setDelConfirm(null); }}>
-          <p style={{ color: "var(--muted)", marginBottom: 20, fontSize: 14 }}>Members remain. The group will be permanently removed.</p>
-          <div style={{ display: "flex", gap: 10 }}>
-            <button className="btn bg" style={{ flex: 1 }} onClick={() => setDelConfirm(null)} disabled={deleting}>Cancel</button>
-            <button className="btn bd" style={{ flex: 1 }} disabled={deleting} onClick={async () => {
-              setDeleting(true);
-              const { error } = await removeGroup(delConfirm);
-              setDeleting(false);
-              if (error) { showToast("Failed to delete ❌"); return; }
-              setDelConfirm(null); showToast("Group deleted.");
-            }}>{deleting ? "Deleting…" : "Delete"}</button>
+          <div style={{ textAlign:"center", padding:"8px 0 20px" }}>
+            <div style={{ fontSize:44, marginBottom:12 }}>🗑️</div>
+            <p style={{ color:"var(--text)", fontWeight:700, fontSize:15, marginBottom:8 }}>Are you sure?</p>
+            <p style={{ color:"var(--muted)", marginBottom:24, fontSize:13.5, lineHeight:1.6 }}>Members will not be deleted — they stay in the system. Only the group will be permanently removed.</p>
+            <div style={{ display:"flex", gap:10 }}>
+              <button className="btn bg" style={{ flex:1 }} onClick={() => setDelConfirm(null)} disabled={deleting}>Cancel</button>
+              <button className="btn bd" style={{ flex:1 }} disabled={deleting} onClick={async () => {
+                setDeleting(true);
+                const { error } = await removeGroup(delConfirm);
+                setDeleting(false);
+                if (error) { showToast("Failed to delete ❌"); return; }
+                setDelConfirm(null); showToast("Group deleted.");
+              }}>{deleting ? "Deleting…" : "Yes, Delete"}</button>
+            </div>
           </div>
         </Modal>
       )}

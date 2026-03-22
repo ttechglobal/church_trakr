@@ -136,6 +136,8 @@ function SessionSummary({ session, group, onBack, onContinueMarking }) {
               <div style={{ fontFamily: T.sans, fontWeight:700, fontSize:13,
                 color: T.red, letterSpacing:".02em",
                 textTransform:"uppercase" }}>Absent · {absentList.length}</div>
+              <div style={{ marginLeft:"auto", fontSize:11, color:T.muted, fontFamily:T.sans,
+                fontWeight:600, letterSpacing:".03em" }}>Needs follow-up</div>
             </div>
             {absentList.map((r, i) => (
               <div key={r.memberId} style={{
@@ -306,15 +308,24 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
   if (step === "group") return (
     <div className="page" style={{ background: T.ivory, minHeight:"100vh" }}>
       <GreenHeader>
-        <div style={{ fontFamily: T.serif, fontSize:28, fontWeight:700, color:"#fff",
+        <div style={{ fontFamily: T.serif, fontSize:29, fontWeight:800, color:"#fff",
           letterSpacing:"-.02em" }}>Attendance</div>
-        <div style={{ fontSize:13, color:"rgba(255,255,255,.5)", marginTop:5,
-          fontFamily: T.sans, letterSpacing:".01em" }}>Select a group to begin</div>
+        <div style={{ fontSize:13, color:"rgba(255,255,255,.48)", marginTop:5,
+          fontFamily: T.sans, fontWeight:500 }}>Select a group to mark</div>
       </GreenHeader>
 
       <div style={{ padding:"20px 20px 32px" }}>
         {groups.length === 0 && (
-          <div className="empty"><div className="empty-ico">👥</div><p>No groups yet. Create one in Groups.</p></div>
+          <div style={{ background:"#fff", borderRadius:20, padding:"40px 24px", textAlign:"center",
+            border:`1px solid ${T.border}`, boxShadow:"0 1px 6px rgba(0,0,0,.04)" }}>
+            <div style={{ fontSize:52, marginBottom:16, lineHeight:1 }}>👥</div>
+            <div style={{ fontFamily:T.serif, fontWeight:700, fontSize:18, marginBottom:8, color:T.text }}>
+              No groups yet
+            </div>
+            <p style={{ fontSize:13.5, color:T.muted, lineHeight:1.7, marginBottom:20 }}>
+              Create a group first, then you can mark attendance for it.
+            </p>
+          </div>
         )}
         {groups.map(g => {
           const cnt = members.filter(m => (m.groupIds || []).includes(g.id)).length;
@@ -324,11 +335,15 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
             ? Math.round((lastSess.records.filter(r => r.present).length / lastSess.records.length) * 100)
             : null;
           return (
-            <div key={g.id} onClick={() => startMarking(g)} style={{
+            <div key={g.id} onClick={() => startMarking(g)}
+              onMouseEnter={e => { e.currentTarget.style.boxShadow="0 4px 20px rgba(26,58,42,.12)"; e.currentTarget.style.transform="translateY(-1px)"; e.currentTarget.style.borderColor=T.forest+"44"; }}
+              onMouseLeave={e => { e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,.04)"; e.currentTarget.style.transform=""; e.currentTarget.style.borderColor=T.border; }}
+              style={{
               display:"flex", alignItems:"center", gap:16,
               background:"#fff", border:`1px solid ${T.border}`,
               borderRadius:18, padding:"18px 20px", marginBottom:10,
               cursor:"pointer", boxShadow:"0 1px 4px rgba(0,0,0,.04)",
+              transition:"all .18s cubic-bezier(.4,0,.2,1)",
             }}>
               <div style={{
                 width:44, height:44, borderRadius:12, flexShrink:0,

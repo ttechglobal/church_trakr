@@ -200,20 +200,22 @@ export default function Analytics({ groups, members, attendanceHistory }) {
     <div className="page">
       <div style={{
         background:"linear-gradient(150deg, #1a3a2a 0%, #2d5a42 55%, #1e4a34 100%)",
-        padding:"max(env(safe-area-inset-top,32px),32px) 20px 20px",
+        padding:"max(env(safe-area-inset-top,32px),32px) 22px 24px",
         position:"relative", overflow:"hidden",
       }}>
-        <div style={{ position:"absolute", top:-40, right:-30, width:160, height:160,
+        <div style={{ position:"absolute", top:-50, right:-40, width:200, height:200,
           borderRadius:"50%", background:"rgba(255,255,255,.04)", pointerEvents:"none" }} />
-        <div style={{ fontFamily:"'Playfair Display',serif", fontSize:26, fontWeight:700, color:"#fff" }}>Analytics</div>
-        <div style={{ fontSize:13, color:"rgba(255,255,255,.6)", marginTop:4 }}>Attendance & follow-up insights</div>
+        <div style={{ position:"absolute", bottom:-30, left:-20, width:120, height:120,
+          borderRadius:"50%", background:"rgba(201,168,76,.05)", pointerEvents:"none" }} />
+        <div style={{ fontFamily:"'Playfair Display',serif", fontSize:27, fontWeight:800, color:"#fff", letterSpacing:"-.015em" }}>Analytics</div>
+        <div style={{ fontSize:13, color:"rgba(255,255,255,.52)", marginTop:5, fontWeight:500 }}>Attendance &amp; follow-up insights</div>
       </div>
 
       <div className="pc">
 
         {/* Controls */}
         <div style={{ display:"flex", gap:8, marginBottom:16, alignItems:"center" }}>
-          <select className="fi" value={selGroup} onChange={e => setSelGroup(e.target.value)} style={{ flex:1 }}>
+          <select className="fi" value={selGroup} onChange={e => setSelGroup(e.target.value)} style={{ flex:1, minWidth:0 }}>
             <option value="all">All Groups</option>
             {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
           </select>
@@ -234,7 +236,7 @@ export default function Analytics({ groups, members, attendanceHistory }) {
             {/* Month navigator */}
             <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:20 }}>
               <button onClick={prevMonth}
-                style={{ width:38, height:38, borderRadius:10, border:"1.5px solid var(--border)", background:"var(--surface)", fontSize:18, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>‹</button>
+                style={{ width:40, height:40, borderRadius:10, border:"1px solid var(--border)", background:"var(--surface)", fontSize:20, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", transition:"var(--transition)", boxShadow:"var(--sh)", flexShrink:0 }}>‹</button>
               <div style={{ flex:1, textAlign:"center", padding:"10px 14px", borderRadius:12, background:"var(--brand)", color:"#fff" }}>
                 <div style={{ fontFamily:"'Playfair Display',serif", fontWeight:700, fontSize:18 }}>
                   {MONTHS_FULL[selMonth]} {selYear}
@@ -244,14 +246,14 @@ export default function Analytics({ groups, members, attendanceHistory }) {
                 )}
               </div>
               <button onClick={nextMonth} disabled={isCurrentMonth}
-                style={{ width:38, height:38, borderRadius:10, border:"1.5px solid var(--border)", background:"var(--surface)", fontSize:18, cursor:isCurrentMonth?"not-allowed":"pointer", display:"flex", alignItems:"center", justifyContent:"center", opacity:isCurrentMonth?.3:1 }}>›</button>
+                style={{ width:40, height:40, borderRadius:10, border:"1px solid var(--border)", background:"var(--surface)", fontSize:20, cursor:isCurrentMonth?"not-allowed":"pointer", display:"flex", alignItems:"center", justifyContent:"center", opacity:isCurrentMonth?.3:1, transition:"var(--transition)", boxShadow:"var(--sh)", flexShrink:0 }}>›</button>
             </div>
 
             {monthStats.sessions === 0 ? (
               <div className="empty">
                 <div className="empty-ico">📅</div>
-                <p>No attendance data for {MONTHS_FULL[selMonth]} {selYear}</p>
-                <p style={{ fontSize:13, color:"var(--muted)", marginTop:6 }}>Try another month or mark some attendance</p>
+                <p style={{ fontWeight:700, fontSize:16, color:"var(--text)", marginBottom:8 }}>No data for {MONTHS_FULL[selMonth]} {selYear}</p>
+                <p style={{ fontSize:13, color:"var(--muted)", lineHeight:1.6 }}>Mark some attendance for this month to see reports here.</p>
               </div>
             ) : (
               <>

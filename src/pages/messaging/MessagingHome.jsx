@@ -21,15 +21,15 @@ export default function MessagingHome() {
     <div className="page">
       <div style={{
         background: "linear-gradient(150deg, #1a3a2a 0%, #2d5a42 55%, #1e4a34 100%)",
-        padding: "max(env(safe-area-inset-top,32px),32px) 20px 20px",
+        padding: "max(env(safe-area-inset-top,32px),32px) 22px 24px",
         position: "relative", overflow: "hidden",
       }}>
         <div style={{ position:"absolute", top:-40, right:-30, width:160, height:160,
           borderRadius:"50%", background:"rgba(255,255,255,.04)", pointerEvents:"none" }} />
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
           <div>
-            <div style={{ fontFamily:"'Playfair Display',serif", fontSize:26, fontWeight:700, color:"#fff" }}>Messaging</div>
-            <div style={{ fontSize:13, color:"rgba(255,255,255,.6)", marginTop:4 }}>Send SMS to your church members</div>
+            <div style={{ fontFamily:"'Playfair Display',serif", fontSize:27, fontWeight:800, color:"#fff", letterSpacing:"-.015em" }}>Messaging</div>
+            <div style={{ fontSize:13, color:"rgba(255,255,255,.52)", marginTop:5, fontWeight:500 }}>Send SMS to your church members</div>
           </div>
           <button onClick={() => navigate("/settings?tab=templates")} style={{
             background:"rgba(255,255,255,.18)", border:"1px solid rgba(255,255,255,.25)",
@@ -52,7 +52,7 @@ export default function MessagingHome() {
 
           <div style={{ fontSize: 11, fontWeight: 700, opacity: .7, textTransform: "uppercase", letterSpacing: ".1em" }}>SMS Credits</div>
           <div style={{ display: "flex", alignItems: "flex-end", gap: 10, margin: "6px 0 2px" }}>
-            <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 48, fontWeight: 700, lineHeight: 1 }}>{credits.toLocaleString()}</div>
+            <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 52, fontWeight: 900, lineHeight: 1, letterSpacing:"-.02em" }}>{credits.toLocaleString()}</div>
             <div style={{ fontSize: 14, opacity: .7, paddingBottom: 6 }}>credits</div>
           </div>
           <div style={{ fontSize: 13, opacity: .75, marginBottom: 18 }}>
@@ -75,9 +75,7 @@ export default function MessagingHome() {
         </div>
 
         {/* ── Send SMS section ── */}
-        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 12 }}>
-          Who do you want to message?
-        </div>
+        <div className="sec-label" style={{ marginBottom: 12 }}>Who do you want to message?</div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
           {ACTIONS.map(a => (
@@ -87,10 +85,11 @@ export default function MessagingHome() {
                 background: "var(--surface)", borderRadius: 16,
                 padding: "14px 16px", cursor: "pointer",
                 border: "1.5px solid var(--border)",
-                transition: "all .12s",
+                boxShadow: "var(--sh)",
+                transition: "var(--transition)",
               }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = a.accent}
-              onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = a.accent; e.currentTarget.style.boxShadow = "var(--sh-md)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.boxShadow = "var(--sh)"; e.currentTarget.style.transform = ""; }}
             >
               <div style={{
                 width: 46, height: 46, borderRadius: 14, flexShrink: 0,
@@ -103,11 +102,9 @@ export default function MessagingHome() {
                 <div style={{ fontWeight: 700, fontSize: 15 }}>{a.label}</div>
                 <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>{a.sub}</div>
               </div>
-              <div style={{
-                width: 28, height: 28, borderRadius: 8, background: a.accent + "18",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                color: a.accent, fontSize: 14, fontWeight: 700, flexShrink: 0,
-              }}>›</div>
+              <svg width="6" height="12" viewBox="0 0 6 12" fill="none" style={{ flexShrink:0 }}>
+                <path d="M1 1l4 5-4 5" stroke={a.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
             </div>
           ))}
         </div>
