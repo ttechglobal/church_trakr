@@ -637,7 +637,7 @@ export default function Settings({ showToast }) {
                 </div>
                 <ChevR />
               </div>
-              <div className="strow" onClick={() => window.open("https://whatsapp.com/channel/ChurchTrakr", "_blank", "noopener,noreferrer")}>
+              <div className="strow" onClick={() => window.open("https://whatsapp.com/channel/0029VbCBzbWJ3juwNfyjIn3Y", "_blank", "noopener,noreferrer")}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <div className="st-ico" style={{ background: "#dcfce7" }}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="#16a34a">

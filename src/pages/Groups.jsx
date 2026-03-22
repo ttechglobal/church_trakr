@@ -449,30 +449,61 @@ function ImportModal({ group, onClose, onImport }) {
 }
 
 // ── Edit Member Modal ─────────────────────────────────────────────────────────
-function EditMemberModal({ member, groups, onClose, onSave }) {
-  const [f, setF] = useState({ name: member.name, phone: member.phone, address: member.address || "", birthday: member.birthday || "", groupIds: member.groupIds || [] });
+function EditMemberModal({ member, groups, onClose, onSave, saving }) {
+  const [f, setF] = useState({
+    name: member.name, phone: member.phone || "",
+    address: member.address || "", birthday: member.birthday || "",
+    groupIds: member.groupIds || [], status: member.status || "active",
+  });
   const h = e => setF(x => ({ ...x, [e.target.name]: e.target.value }));
   const togGrp = id => setF(x => ({ ...x, groupIds: x.groupIds.includes(id) ? x.groupIds.filter(g => g !== id) : [...x.groupIds, id] }));
   return (
     <Modal title="Edit Member" onClose={onClose}>
-      <div className="fstack">
-        <div className="fg"><label className="fl">Full Name *</label><input className="fi" name="name" value={f.name} onChange={h} /></div>
-        <div className="fg"><label className="fl">Phone <span style={{ fontWeight: 400, color: "var(--muted)" }}>optional</span></label><input className="fi" name="phone" value={f.phone} onChange={h} /></div>
-        <div className="fg"><label className="fl">Address</label><input className="fi" name="address" placeholder="Enter address…" value={f.address} onChange={h} /></div>
-        <div className="fg"><label className="fl">Birthday</label><input className="fi" name="birthday" type="date" value={f.birthday} onChange={h} /></div>
+      <div className="fstack" style={{ paddingBottom: 8 }}>
+        <div className="fg">
+          <label className="fl">Full Name *</label>
+          <input className="fi" name="name" value={f.name} onChange={h} placeholder="Enter full name" autoFocus />
+        </div>
+        <div className="fg">
+          <label className="fl">Phone <span style={{ fontWeight: 400, color: "var(--muted)" }}>optional</span></label>
+          <input className="fi" name="phone" value={f.phone} onChange={h} placeholder="08012345678" inputMode="tel" />
+        </div>
+        <div className="fg">
+          <label className="fl">Address <span style={{ fontWeight: 400, color: "var(--muted)" }}>optional</span></label>
+          <input className="fi" name="address" placeholder="Enter address…" value={f.address} onChange={h} />
+        </div>
+        <div className="fg">
+          <label className="fl">Birthday <span style={{ fontWeight: 400, color: "var(--muted)" }}>optional</span></label>
+          <input className="fi" name="birthday" type="date" value={f.birthday} onChange={h} />
+        </div>
+        <div className="fg">
+          <label className="fl">Status</label>
+          <select className="fi" name="status" value={f.status} onChange={h}>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
         <div className="fg">
           <label className="fl">Groups</label>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
             {groups.map(g => (
-              <button key={g.id} onClick={() => togGrp(g.id)} className="btn" style={{ padding: "6px 14px", fontSize: 12, borderRadius: 20, background: f.groupIds.includes(g.id) ? "var(--brand)" : "var(--surface2)", color: f.groupIds.includes(g.id) ? "#fff" : "var(--muted)" }}>
-                {g.name}
+              <button key={g.id} onClick={() => togGrp(g.id)} className="btn"
+                style={{ padding: "7px 14px", fontSize: 12.5, borderRadius: 20, minHeight: 36,
+                  background: f.groupIds.includes(g.id) ? "var(--brand)" : "var(--surface2)",
+                  color: f.groupIds.includes(g.id) ? "#fff" : "var(--muted)",
+                  border: f.groupIds.includes(g.id) ? "none" : "1px solid var(--border)",
+                }}>
+                {f.groupIds.includes(g.id) ? "✓ " : ""}{g.name}
               </button>
             ))}
+            {groups.length === 0 && <p style={{ fontSize: 13, color: "var(--muted)" }}>No groups created yet</p>}
           </div>
         </div>
         <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
-          <button className="btn bg" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
-          <button className="btn bp" style={{ flex: 1 }} onClick={() => onSave({ ...member, ...f })}>Save Changes</button>
+          <button className="btn bg" style={{ flex: 1 }} onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="btn bp" style={{ flex: 1 }} onClick={() => onSave({ ...member, ...f })} disabled={saving}>
+            {saving ? "Saving…" : "Save Changes"}
+          </button>
         </div>
       </div>
     </Modal>
@@ -685,6 +716,7 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
   const [editGroupModal, setEditGroupModal] = useState(false);
   const [editGroupF, setEditGroupF] = useState({ name: group.name, leader: group.leader || "" });
   const [savingGroup, setSavingGroup] = useState(false);
+  const [savingMember, setSavingMember] = useState(false);
   const [bdayMsg, setBdayMsg] = useState(group.bdayMsg || DEFAULT_BDAY_MSG.replace("{group}", group.name));
   const [bdaySettingsOpen, setBdaySettingsOpen] = useState(false);
   const [bdaySmsOpen, setBdaySmsOpen] = useState(false);
@@ -756,10 +788,13 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
     setRemoveId(null); showToast("Member removed from group.");
   };
   const handleSaveMember = async updated => {
-    const { error } = await editMember(updated.id, updated);
+    setSavingMember(true);
+    const { data, error } = await editMember(updated.id, updated);
+    setSavingMember(false);
     if (error) { showToast("Failed to update member ❌"); return; }
-    setViewMember(members.find(m => m.id === updated.id) || updated);
-    setEditingMember(false); showToast("Member updated!");
+    // Use fresh DB data, not stale members[] closure
+    setViewMember(data || updated);
+    setEditingMember(false); showToast("Member updated! ✅");
   };
 
   const handleSaveGroup = async () => {
@@ -799,7 +834,7 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
             showToast("Member deleted from system.");
           }}
         />
-        {editingMember && <EditMemberModal member={live} groups={groups} onClose={() => setEditingMember(false)} onSave={handleSaveMember} />}
+        {editingMember && <EditMemberModal member={live} groups={groups} onClose={() => setEditingMember(false)} onSave={handleSaveMember} saving={savingMember} />}
       </>
     );
   }

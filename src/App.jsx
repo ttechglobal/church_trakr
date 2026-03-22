@@ -188,6 +188,21 @@ function AppShell() {
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
+  // Lightweight attendance-only refresh — used by the Attendance page on mount
+  // so data is always fresh when the user navigates to that page.
+  // Does NOT show the global loading bar (no setDataLoading) to avoid flicker.
+  const refreshAttendance = useCallback(async () => {
+    try {
+      const a = await fetchAttendance(churchId);
+      if (!a.error && a.data) {
+        setAtHistory(a.data.map(s => ({
+          id: s.id, groupId: s.group_id, date: s.date, church_id: s.church_id,
+          records: (s.records ?? []).map(r => ({ memberId: r.member_id, name: r.name, present: r.present })),
+        })));
+      }
+    } catch {}
+  }, [churchId]);
+
   useEffect(() => {
     let lastLoaded = Date.now();
     const STALE_MS = 5 * 60 * 1000;
@@ -379,7 +394,7 @@ function AppShell() {
     groups, members, attendanceHistory, firstTimers, ftAttendance, ftGroupId,
     addGroup, editGroup, removeGroup,
     addMember, bulkAddMembers, editMember, removeMember,
-    setAttendanceHistory: setAtHistory, saveAttendance,
+    setAttendanceHistory: setAtHistory, saveAttendance, refreshAttendance,
     addFirstTimer, editFirstTimer, removeFirstTimer,
     setFtAttendance, showToast, updateChurch, signOut,
   };

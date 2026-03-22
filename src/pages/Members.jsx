@@ -317,10 +317,12 @@ export default function Members({ members, groups, attendanceHistory, addMember,
 
   const handleSave = async (updated) => {
     setSaving(true);
-    const { error } = await editMember(updated.id, updated);
+    const { data, error } = await editMember(updated.id, updated);
     setSaving(false);
     if (error) { showToast("❌ Failed to update member"); return; }
-    setViewMember(members.find(m => m.id === updated.id) || updated);
+    // Use the returned DB data (not stale members[] state) so the profile
+    // reflects the save immediately without needing a refresh
+    setViewMember(data || updated);
     setEditingMember(false);
     showToast("✅ Member updated!");
   };

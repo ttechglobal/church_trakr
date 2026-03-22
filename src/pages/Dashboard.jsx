@@ -47,12 +47,21 @@ export default function Dashboard({ groups, members, attendanceHistory }) {
       };
     });
 
-  const recentAbsentees = attendanceHistory?.length > 0
-    ? [...attendanceHistory]
-        .sort((a, b) => b.date.localeCompare(a.date))
-        .slice(0, Math.max(groups.length, 1))
-        .reduce((sum, s) => sum + s.records.filter(r => !r.present).length, 0)
-    : 0;
+  // Pending absentees from the most recent session per group only (not all-time)
+  const recentAbsentees = (() => {
+    if (!attendanceHistory?.length || !groups.length) return 0;
+    let total = 0;
+    for (const group of groups) {
+      // Find the single most recent session for this group
+      const latest = [...attendanceHistory]
+        .filter(s => s.groupId === group.id)
+        .sort((a, b) => b.date.localeCompare(a.date))[0];
+      if (latest) {
+        total += latest.records.filter(r => r.present === false).length;
+      }
+    }
+    return total;
+  })();
 
   // Today's date
   const today = new Date().toLocaleDateString("en-NG", { weekday: "long", month: "long", day: "numeric" });

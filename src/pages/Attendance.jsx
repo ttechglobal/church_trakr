@@ -1,5 +1,5 @@
 // src/pages/Attendance.jsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { fmtDate } from "../lib/helpers";
 import { ChevL, ChevR } from "../components/ui/Icons";
@@ -58,32 +58,115 @@ const GreenHeader = ({ children }) => (
   </div>
 );
 
+// ── Collapsible member list ───────────────────────────────────────────────────
+const INITIAL_SHOW = 5;
+
+function CollapsibleList({ items, color, dot, label, icon, badge }) {
+  const [expanded, setExpanded] = useState(false);
+  const shown = expanded ? items : items.slice(0, INITIAL_SHOW);
+  const hidden = items.length - INITIAL_SHOW;
+
+  return (
+    <div style={{ background:"#fff", borderRadius:18, overflow:"hidden",
+      border:`1px solid ${T.border}`, marginBottom:14,
+      boxShadow:"0 1px 6px rgba(0,0,0,.04)" }}>
+      {/* Header */}
+      <div style={{ padding:"14px 18px", borderBottom:`1px solid ${T.border}`,
+        display:"flex", alignItems:"center", gap:8 }}>
+        <div style={{ width:8, height:8, borderRadius:"50%", background:color, flexShrink:0 }} />
+        <div style={{ fontFamily:T.sans, fontWeight:700, fontSize:13,
+          color, letterSpacing:".02em", textTransform:"uppercase" }}>
+          {icon} {label} · {items.length}
+        </div>
+        {badge && (
+          <div style={{ marginLeft:"auto", fontSize:11, color:T.muted,
+            fontFamily:T.sans, fontWeight:600, letterSpacing:".03em" }}>{badge}</div>
+        )}
+      </div>
+
+      {/* Rows */}
+      {shown.map((r, i) => (
+        <div key={r.memberId || r.name} style={{
+          padding:"13px 18px",
+          borderBottom: i < shown.length - 1 || hidden > 0 ? `1px solid ${T.border}` : "none",
+          display:"flex", alignItems:"center", justifyContent:"space-between",
+          animation: expanded && i >= INITIAL_SHOW ? "fadeRowIn .2s ease both" : "none",
+          animationDelay: expanded ? `${(i - INITIAL_SHOW) * 0.03}s` : "0s",
+        }}>
+          <div style={{ fontWeight:color === T.green ? 500 : 600, fontSize:14,
+            fontFamily:T.sans, color:T.text }}>{r.name}</div>
+          <div style={{ width:6, height:6, borderRadius:"50%", background:color, opacity:dot }} />
+        </div>
+      ))}
+
+      {/* Expand / collapse button */}
+      {items.length > INITIAL_SHOW && (
+        <button onClick={() => setExpanded(e => !e)}
+          style={{
+            width:"100%", padding:"13px 18px",
+            background: expanded ? T.warm : "#f9f8f5",
+            border:"none", borderTop:`1px solid ${T.border}`,
+            fontFamily:T.sans, fontWeight:700, fontSize:13,
+            color:T.forest, cursor:"pointer",
+            display:"flex", alignItems:"center", justifyContent:"center", gap:6,
+            transition:"background .15s",
+          }}>
+          {expanded ? (
+            <>
+              <svg width="12" height="8" viewBox="0 0 12 8" fill="none">
+                <path d="M1 7l5-5 5 5" stroke={T.forest} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Show less
+            </>
+          ) : (
+            <>
+              <svg width="12" height="8" viewBox="0 0 12 8" fill="none">
+                <path d="M1 1l5 5 5-5" stroke={T.forest} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Show {hidden} more
+            </>
+          )}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ── Session Summary ───────────────────────────────────────────────────────────
 function SessionSummary({ session, group, onBack, onContinueMarking }) {
   const recs       = session.records;
   const presentCnt = recs.filter(r => r.present === true).length;
   const absentCnt  = recs.filter(r => r.present === false).length;
   const absentList = recs.filter(r => r.present === false);
+  const presentList= recs.filter(r => r.present === true);
   const rate       = recs.length ? Math.round((presentCnt / recs.length) * 100) : 0;
-  const rc         = rateColor(rate);
 
   return (
     <div className="page" style={{ background: T.ivory, minHeight:"100vh" }}>
+      <style>{`
+        @keyframes fadeRowIn {
+          from { opacity: 0; transform: translateY(6px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+
       <GreenHeader>
         <BackBtn label="Back" onClick={onBack} light />
 
         <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between", marginTop:14 }}>
           <div>
-            <div style={{ fontFamily: T.serif, fontSize:22, fontWeight:700, color:"#fff",
-              letterSpacing:"-.01em" }}>Attendance Report</div>
-            <div style={{ fontSize:13, color:"rgba(255,255,255,.55)", marginTop:4,
-              fontFamily: T.sans }}>{group?.name} · {fmtDate(session.date)}</div>
+            <div style={{ fontFamily:T.serif, fontSize:22, fontWeight:700, color:"#fff", letterSpacing:"-.01em" }}>
+              Attendance Report
+            </div>
+            <div style={{ fontSize:13, color:"rgba(255,255,255,.55)", marginTop:4, fontFamily:T.sans }}>
+              {group?.name} · {fmtDate(session.date)}
+            </div>
           </div>
           <div style={{ textAlign:"center", flexShrink:0 }}>
-            <div style={{ fontFamily: T.serif, fontSize:44, fontWeight:700, lineHeight:1,
+            <div style={{ fontFamily:T.serif, fontSize:44, fontWeight:700, lineHeight:1,
               color: rate >= 80 ? "#6ee7b7" : rate >= 60 ? "#fcd34d" : "#fca5a5" }}>{rate}%</div>
             <div style={{ fontSize:10, color:"rgba(255,255,255,.4)", marginTop:3,
-              letterSpacing:".08em", textTransform:"uppercase", fontFamily: T.sans }}>attendance</div>
+              letterSpacing:".08em", textTransform:"uppercase", fontFamily:T.sans }}>attendance</div>
           </div>
         </div>
 
@@ -92,102 +175,57 @@ function SessionSummary({ session, group, onBack, onContinueMarking }) {
             ["Absent",  absentCnt,  "#fca5a5", "rgba(252,165,165,.1)"],
             ["Total",   recs.length,"rgba(255,255,255,.45)","rgba(255,255,255,.06)"]
           ].map(([l, v, col, bg]) => (
-            <div key={l} style={{ flex:1, background:bg, borderRadius:12,
-              padding:"12px 8px", textAlign:"center",
-              border:"1px solid rgba(255,255,255,.07)" }}>
-              <div style={{ fontFamily: T.serif, fontWeight:700, fontSize:22,
-                color:col, lineHeight:1 }}>{v}</div>
+            <div key={l} style={{ flex:1, background:bg, borderRadius:12, padding:"12px 8px",
+              textAlign:"center", border:"1px solid rgba(255,255,255,.07)" }}>
+              <div style={{ fontFamily:T.serif, fontWeight:700, fontSize:22, color:col, lineHeight:1 }}>{v}</div>
               <div style={{ fontSize:10, color:col, fontWeight:600, marginTop:4,
-                opacity:0.75, letterSpacing:".04em", textTransform:"uppercase",
-                fontFamily: T.sans }}>{l}</div>
+                opacity:0.75, letterSpacing:".04em", textTransform:"uppercase", fontFamily:T.sans }}>{l}</div>
             </div>
           ))}
         </div>
       </GreenHeader>
 
       <div style={{ padding:"20px 20px 32px" }}>
+        {/* Action buttons */}
         <div style={{ display:"flex", gap:10, marginBottom:24 }}>
           {onContinueMarking && (
             <button onClick={onContinueMarking} style={{
               flex:1, padding:"14px 10px", borderRadius:14,
               background:"#fff", border:`1.5px solid ${T.border}`,
-              fontFamily: T.sans, fontWeight:700, fontSize:14,
-              color: T.text, cursor:"pointer",
-              boxShadow:"0 1px 4px rgba(0,0,0,.05)",
+              fontFamily:T.sans, fontWeight:700, fontSize:14,
+              color:T.text, cursor:"pointer", boxShadow:"0 1px 4px rgba(0,0,0,.05)",
             }}>Edit Attendance</button>
           )}
           <button onClick={onBack} style={{
             flex:1, padding:"14px 10px", borderRadius:14,
-            background: T.forest, border:"none",
-            fontFamily: T.sans, fontWeight:700, fontSize:14,
+            background:T.forest, border:"none",
+            fontFamily:T.sans, fontWeight:700, fontSize:14,
             color:"#fff", cursor:"pointer",
             boxShadow:`0 4px 16px rgba(26,58,42,.3)`,
           }}>Done</button>
         </div>
 
+        {/* Absent list — collapsible */}
         {absentList.length > 0 ? (
-          <div style={{ background:"#fff", borderRadius:18, overflow:"hidden",
-            border:`1px solid ${T.border}`, marginBottom:14,
-            boxShadow:"0 1px 6px rgba(0,0,0,.04)" }}>
-            <div style={{ padding:"14px 18px", borderBottom:`1px solid ${T.border}`,
-              display:"flex", alignItems:"center", gap:8 }}>
-              <div style={{ width:8, height:8, borderRadius:"50%",
-                background: T.red, flexShrink:0 }} />
-              <div style={{ fontFamily: T.sans, fontWeight:700, fontSize:13,
-                color: T.red, letterSpacing:".02em",
-                textTransform:"uppercase" }}>Absent · {absentList.length}</div>
-              <div style={{ marginLeft:"auto", fontSize:11, color:T.muted, fontFamily:T.sans,
-                fontWeight:600, letterSpacing:".03em" }}>Needs follow-up</div>
-            </div>
-            {absentList.map((r, i) => (
-              <div key={r.memberId} style={{
-                padding:"14px 18px",
-                borderBottom: i < absentList.length - 1 ? `1px solid ${T.border}` : "none",
-                display:"flex", alignItems:"center", justifyContent:"space-between",
-              }}>
-                <div style={{ fontWeight:600, fontSize:14, fontFamily: T.sans,
-                  color: T.text }}>{r.name}</div>
-                <div style={{ width:6, height:6, borderRadius:"50%",
-                  background: T.red, opacity:0.6 }} />
-              </div>
-            ))}
-          </div>
+          <CollapsibleList
+            items={absentList} color={T.red} dot={0.6}
+            label="Absent" badge="Needs follow-up"
+          />
         ) : (
-          <div style={{ background: T.greenSoft, borderRadius:18, padding:"28px 20px",
-            textAlign:"center", marginBottom:14,
-            border:`1px solid rgba(22,163,74,.15)` }}>
+          <div style={{ background:T.greenSoft, borderRadius:18, padding:"28px 20px",
+            textAlign:"center", marginBottom:14, border:`1px solid rgba(22,163,74,.15)` }}>
             <div style={{ fontSize:36, marginBottom:10 }}>✦</div>
-            <div style={{ fontFamily: T.serif, fontWeight:700, color: T.green,
-              fontSize:18 }}>Full attendance</div>
-            <div style={{ fontSize:13, color: T.green, marginTop:4,
-              opacity:0.7, fontFamily: T.sans }}>Everyone was present</div>
+            <div style={{ fontFamily:T.serif, fontWeight:700, color:T.green, fontSize:18 }}>Full attendance</div>
+            <div style={{ fontSize:13, color:T.green, marginTop:4, opacity:0.7, fontFamily:T.sans }}>Everyone was present</div>
           </div>
         )}
 
+        {/* Present list — collapsible */}
         {presentCnt > 0 && (
-          <div style={{ background:"#fff", borderRadius:18, overflow:"hidden",
-            border:`1px solid ${T.border}`, boxShadow:"0 1px 6px rgba(0,0,0,.04)" }}>
-            <div style={{ padding:"14px 18px", borderBottom:`1px solid ${T.border}`,
-              display:"flex", alignItems:"center", gap:8 }}>
-              <div style={{ width:8, height:8, borderRadius:"50%",
-                background: T.green, flexShrink:0 }} />
-              <div style={{ fontFamily: T.sans, fontWeight:700, fontSize:13,
-                color: T.green, letterSpacing:".02em",
-                textTransform:"uppercase" }}>Present · {presentCnt}</div>
-            </div>
-            {recs.filter(r => r.present === true).map((r, i, arr) => (
-              <div key={r.memberId} style={{
-                padding:"14px 18px",
-                borderBottom: i < arr.length - 1 ? `1px solid ${T.border}` : "none",
-                display:"flex", alignItems:"center", justifyContent:"space-between",
-              }}>
-                <div style={{ fontWeight:500, fontSize:14, fontFamily: T.sans,
-                  color: T.text }}>{r.name}</div>
-                <div style={{ width:6, height:6, borderRadius:"50%",
-                  background: T.green, opacity:0.5 }} />
-              </div>
-            ))}
-          </div>
+          <CollapsibleList
+            items={presentList} color={T.green} dot={0.5}
+            label="Present"
+          />
         )}
       </div>
     </div>
@@ -209,8 +247,15 @@ function SessionSummary({ session, group, onBack, onContinueMarking }) {
 // first attempt's error while the second was still running server-side.
 
 // ── Main ──────────────────────────────────────────────────────────────────────
-export default function Attendance({ groups, members, attendanceHistory, saveAttendance, showToast }) {
+export default function Attendance({ groups, members, attendanceHistory, saveAttendance, refreshAttendance, showToast }) {
   const { church } = useAuth();
+
+  // Refresh attendance data every time this page is visited so the list
+  // is always up to date — silently in the background, no loading spinner.
+  useEffect(() => {
+    refreshAttendance?.();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [step,             setStep]             = useState("group");
   const [selGrp,           setSelGrp]           = useState(null);
   const [selDate,          setSelDate]          = useState(new Date().toISOString().split("T")[0]);
@@ -258,22 +303,45 @@ export default function Attendance({ groups, members, attendanceHistory, saveAtt
 
   const save = async () => {
     setSaveErr(""); setSaving(true);
+
+    // Timeout guard — if saveAttendance hangs for >12s (e.g. ensureSession
+    // never resolves on a slow first load), reset the button so the user
+    // isn't stuck on "Saving…" forever. They can tap again immediately.
+    const timeoutId = setTimeout(() => {
+      setSaving(false);
+      setSaveErr("Save is taking too long — tap Retry to try again.");
+    }, 12000);
+
     try {
-      const session = { id: editingSessionId || undefined, groupId: selGrp.id, date: selDate, records: recs.map(r => ({ ...r })) };
+      const session = {
+        id: editingSessionId || undefined,
+        groupId: selGrp.id, date: selDate,
+        records: recs.map(r => ({ ...r })),
+      };
       const { data, error, offline } = await saveAttendance(session);
-      if (error) { setSaveErr(error?.message || "Unknown error"); showToast("Save failed ❌"); return; }
+      clearTimeout(timeoutId);
+
+      if (error) {
+        setSaveErr(error?.message || "Save failed — tap Retry");
+        showToast("Save failed ❌");
+        return;
+      }
       const savedId = data?.id || editingSessionId;
       if (!editingSessionId && savedId) setEditingSessionId(savedId);
       if (offline) {
-        showToast("📶 Saved offline — will sync when back online");
+        showToast("📶 Saved offline — will sync when online");
       } else {
         showToast("Attendance saved ✅");
       }
       setStep("summary");
     } catch (e) {
-      setSaveErr(e?.message || "Unexpected error");
+      clearTimeout(timeoutId);
+      setSaveErr(e?.message || "Unexpected error — tap Retry");
       showToast("Save failed ❌");
-    } finally { setSaving(false); }
+    } finally {
+      clearTimeout(timeoutId);
+      setSaving(false);
+    }
   };
 
   const currentSession = editingSessionId
