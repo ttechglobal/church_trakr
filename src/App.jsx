@@ -203,6 +203,38 @@ function AppShell() {
     } catch {}
   }, [churchId]);
 
+  // Notify all other admins on this account when someone marks attendance.
+  // Fire-and-forget — never block the UI.
+  const notifyAttendanceMarked = useCallback(async (groupName, presentCount, totalCount) => {
+    try {
+      const fnUrl = import.meta.env.VITE_SUPABASE_URL
+        ?.replace("https://", "https://")
+        ?.replace(".supabase.co", ".supabase.co/functions/v1");
+      if (!fnUrl) return;
+      const adminName = church?.admin_name || "Admin";
+      await fetch(`${fnUrl}/send-notifications`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          // Use anon key for client calls — edge function validates with cron secret for cron,
+          // but for client-triggered notifications we pass the auth token instead
+          "Authorization": `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ""}`,
+        },
+        body: JSON.stringify({
+          type:        "attendance_marked",
+          church_id:   churchId,
+          church_name: church?.name || "",
+          group_name:  groupName,
+          marked_by:   adminName,
+          present:     presentCount,
+          total:       totalCount,
+        }),
+      });
+    } catch {
+      // Notifications are non-critical — silently fail
+    }
+  }, [churchId, church]);
+
   useEffect(() => {
     let lastLoaded = Date.now();
     const STALE_MS = 5 * 60 * 1000;
@@ -370,8 +402,8 @@ function AppShell() {
     });
   }, [churchId]);
 
-  const { showInstallBanner, promptInstall, dismissInstall, updateAvailable, applyUpdate,
-          pushPermission, pushSubscription, subscribePush } = usePWA(churchId);
+  const { showInstallBanner, showIosInstallBanner, promptInstall, dismissInstall, dismissIosInstall,
+          updateAvailable, applyUpdate, pushPermission, pushSubscription, subscribePush } = usePWA(churchId);
 
   const [showPushPrompt, setShowPushPrompt] = useState(false);
   useEffect(() => {
@@ -394,7 +426,7 @@ function AppShell() {
     groups, members, attendanceHistory, firstTimers, ftAttendance, ftGroupId,
     addGroup, editGroup, removeGroup,
     addMember, bulkAddMembers, editMember, removeMember,
-    setAttendanceHistory: setAtHistory, saveAttendance, refreshAttendance,
+    setAttendanceHistory: setAtHistory, saveAttendance, refreshAttendance, notifyAttendanceMarked,
     addFirstTimer, editFirstTimer, removeFirstTimer,
     setFtAttendance, showToast, updateChurch, signOut,
   };
@@ -423,7 +455,17 @@ function AppShell() {
             icon="📱" title="Add ChurchTrakr to your home screen"
             subtitle="Works offline · Faster access · No app store needed"
             primaryAction={promptInstall} primaryLabel="Install"
-            secondaryAction={dismissInstall} secondaryLabel="Not now"
+            secondaryAction={dismissInstall} secondaryLabel="Later"
+          />
+        )}
+
+        {/* iOS Safari: no beforeinstallprompt, show manual instructions instead */}
+        {showIosInstallBanner && !showInstallBanner && (
+          <Banner
+            icon="📲" title="Install ChurchTrakr on your iPhone"
+            subtitle='Tap the Share button (⬆️) then "Add to Home Screen"'
+            secondaryAction={dismissIosInstall} secondaryLabel="Got it"
+            gradient="linear-gradient(135deg, #1a3a2a, #2d5a42)"
           />
         )}
 

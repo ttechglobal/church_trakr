@@ -4,6 +4,57 @@ import { supabase } from "../services/supabaseClient";
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || "";
 
+// ── Module-level prompt capture ───────────────────────────────────────────────
+// `beforeinstallprompt` can fire BEFORE React even mounts. We capture it at
+// the module level so it's never missed regardless of when the hook runs.
+let _capturedPrompt = null;
+let _promptListeners = [];
+
+function notifyPromptListeners() {
+  _promptListeners.forEach(fn => fn(_capturedPrompt));
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    _capturedPrompt = e;
+    notifyPromptListeners();
+  });
+  window.addEventListener("appinstalled", () => {
+    _capturedPrompt = null;
+    notifyPromptListeners();
+  });
+}
+
+// ── Snooze helpers ────────────────────────────────────────────────────────────
+const SNOOZE_KEY      = "pwa_install_snooze_until";
+const SNOOZE_DAYS     = 3;   // re-prompt after 3 days if dismissed
+const IOS_SNOOZE_KEY  = "pwa_ios_snooze_until";
+
+function isSnoozed(key) {
+  try {
+    const until = parseInt(localStorage.getItem(key) || "0");
+    return Date.now() < until;
+  } catch { return false; }
+}
+
+function snooze(key, days = SNOOZE_DAYS) {
+  try {
+    localStorage.setItem(key, String(Date.now() + days * 86_400_000));
+  } catch {}
+}
+
+// ── iOS / Safari detection ────────────────────────────────────────────────────
+function isIOS() {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
+function isInStandaloneMode() {
+  return window.matchMedia("(display-mode: standalone)").matches ||
+    window.navigator.standalone === true;
+}
+
 function urlBase64ToUint8Array(base64String) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -11,21 +62,40 @@ function urlBase64ToUint8Array(base64String) {
   return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
 }
 
+// ── Hook ──────────────────────────────────────────────────────────────────────
 export function usePWA(churchId) {
-  const [installPrompt,    setInstallPrompt]    = useState(null);
-  const [isInstalled,      setIsInstalled]      = useState(false);
+  const [installPrompt,    setInstallPrompt]    = useState(_capturedPrompt);
+  const [isInstalled,      setIsInstalled]      = useState(isInStandaloneMode);
   const [pushPermission,   setPushPermission]   = useState(
     "Notification" in window ? Notification.permission : "default"
   );
   const [pushSubscription, setPushSubscription] = useState(null);
   const [updateAvailable,  setUpdateAvailable]  = useState(false);
   const [swRegistration,   setSwRegistration]   = useState(null);
-  const [installDismissed, setInstallDismissed] = useState(
-    () => !!localStorage.getItem("pwa_install_dismissed")
-  );
+
+  // Re-render trigger for snooze state (no useState needed — computed inline)
+  const [, forceRender] = useState(0);
+
   const waitingSWRef = useRef(null);
 
-  // ── 1. Detect if already installed (standalone mode) ──────────────────────
+  // ── 1. Sync module-level prompt into React state ──────────────────────────
+  useEffect(() => {
+    // Register as a listener so we get updates if the event fires later
+    const handler = (prompt) => {
+      setInstallPrompt(prompt);
+      forceRender(n => n + 1);
+    };
+    _promptListeners.push(handler);
+
+    // Sync immediately in case it was already captured before this hook ran
+    if (_capturedPrompt) setInstallPrompt(_capturedPrompt);
+
+    return () => {
+      _promptListeners = _promptListeners.filter(fn => fn !== handler);
+    };
+  }, []);
+
+  // ── 2. Track standalone mode changes ─────────────────────────────────────
   useEffect(() => {
     const mq = window.matchMedia("(display-mode: standalone)");
     setIsInstalled(mq.matches || window.navigator.standalone === true);
@@ -34,37 +104,22 @@ export function usePWA(churchId) {
     return () => mq.removeEventListener("change", h);
   }, []);
 
-  // ── 2. Capture the install prompt (Chrome/Android) ────────────────────────
-  useEffect(() => {
-    const onPrompt = e => { e.preventDefault(); setInstallPrompt(e); };
-    const onInstalled = () => { setIsInstalled(true); setInstallPrompt(null); };
-    window.addEventListener("beforeinstallprompt", onPrompt);
-    window.addEventListener("appinstalled", onInstalled);
-    return () => {
-      window.removeEventListener("beforeinstallprompt", onPrompt);
-      window.removeEventListener("appinstalled", onInstalled);
-    };
-  }, []);
-
-  // ── 3. Wait for SW to be ready, get existing subscription, watch for updates
+  // ── 3. SW ready → get push sub + watch for updates ───────────────────────
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
 
     navigator.serviceWorker.ready.then(reg => {
       setSwRegistration(reg);
 
-      // Get any existing push subscription
       reg.pushManager.getSubscription().then(sub => {
         if (sub) setPushSubscription(sub);
       });
 
-      // If there's already a waiting SW when we load, show the banner
       if (reg.waiting) {
         waitingSWRef.current = reg.waiting;
         setUpdateAvailable(true);
       }
 
-      // Watch for a NEW sw installing in the future
       reg.addEventListener("updatefound", () => {
         const newSW = reg.installing;
         if (!newSW) return;
@@ -77,68 +132,57 @@ export function usePWA(churchId) {
       });
     });
 
-    // When the SW actually takes control (after skip waiting), reload
     navigator.serviceWorker.addEventListener("controllerchange", () => {
       window.location.reload();
     });
   }, []);
 
-  // ── Install to home screen ────────────────────────────────────────────────
+  // ── Install actions ───────────────────────────────────────────────────────
   const promptInstall = useCallback(async () => {
     if (!installPrompt) return false;
     installPrompt.prompt();
     const { outcome } = await installPrompt.userChoice;
-    setInstallPrompt(null);
+    if (outcome === "accepted") {
+      _capturedPrompt = null;
+      setInstallPrompt(null);
+    }
     return outcome === "accepted";
   }, [installPrompt]);
 
+  // Snooze for SNOOZE_DAYS — not permanent, so it re-prompts after 3 days
   const dismissInstall = useCallback(() => {
-    localStorage.setItem("pwa_install_dismissed", "1");
-    setInstallDismissed(true);
-    setInstallPrompt(null);
+    snooze(SNOOZE_KEY, SNOOZE_DAYS);
+    forceRender(n => n + 1);
   }, []);
 
-  // ── Apply update — tell the waiting SW to skip waiting ───────────────────
-  // The controllerchange listener above will then reload the page.
+  // iOS-specific: snooze the manual install instructions banner
+  const dismissIosInstall = useCallback(() => {
+    snooze(IOS_SNOOZE_KEY, SNOOZE_DAYS);
+    forceRender(n => n + 1);
+  }, []);
+
+  // ── Apply update ──────────────────────────────────────────────────────────
   const applyUpdate = useCallback(() => {
     const sw = waitingSWRef.current;
-    if (sw) {
-      sw.postMessage({ type: "SKIP_WAITING" });
-    } else {
-      // Fallback: just reload and let the browser sort it out
-      window.location.reload();
-    }
+    if (sw) sw.postMessage({ type: "SKIP_WAITING" });
+    else window.location.reload();
   }, []);
 
-  // ── Enable push notifications ─────────────────────────────────────────────
+  // ── Push notifications ────────────────────────────────────────────────────
   const subscribePush = useCallback(async () => {
-    // Step 1: check SW is available
-    if (!("serviceWorker" in navigator)) {
-      console.warn("[usePWA] Service workers not supported");
-      return { ok: false, reason: "unsupported" };
-    }
-
-    // Step 2: check VAPID key is configured
+    if (!("serviceWorker" in navigator)) return { ok: false, reason: "unsupported" };
     if (!VAPID_PUBLIC_KEY) {
-      console.warn("[usePWA] VITE_VAPID_PUBLIC_KEY is not set in .env");
+      console.warn("[usePWA] VITE_VAPID_PUBLIC_KEY not set");
       return { ok: false, reason: "no_vapid_key" };
     }
-
-    // Step 3: request notification permission
     let permission;
     try {
       permission = await Notification.requestPermission();
       setPushPermission(permission);
     } catch (err) {
-      console.warn("[usePWA] requestPermission failed:", err);
       return { ok: false, reason: "permission_error" };
     }
-
-    if (permission !== "granted") {
-      return { ok: false, reason: "denied" };
-    }
-
-    // Step 4: subscribe via pushManager
+    if (permission !== "granted") return { ok: false, reason: "denied" };
     try {
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.subscribe({
@@ -146,8 +190,6 @@ export function usePWA(churchId) {
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
       });
       setPushSubscription(sub);
-
-      // Step 5: save to Supabase
       if (churchId) {
         await supabase.from("push_subscriptions").upsert({
           church_id:    churchId,
@@ -155,7 +197,6 @@ export function usePWA(churchId) {
           updated_at:   new Date().toISOString(),
         }, { onConflict: "church_id" });
       }
-
       return { ok: true };
     } catch (err) {
       console.warn("[usePWA] pushManager.subscribe failed:", err);
@@ -163,19 +204,28 @@ export function usePWA(churchId) {
     }
   }, [churchId]);
 
-  // ── Disable push notifications ────────────────────────────────────────────
   const unsubscribePush = useCallback(async () => {
     if (!pushSubscription) return;
-    try {
-      await pushSubscription.unsubscribe();
-    } catch (err) {
-      console.warn("[usePWA] unsubscribe failed:", err);
-    }
+    try { await pushSubscription.unsubscribe(); } catch {}
     setPushSubscription(null);
     if (churchId) {
       await supabase.from("push_subscriptions").delete().eq("church_id", churchId);
     }
   }, [pushSubscription, churchId]);
+
+  // ── Derived booleans ──────────────────────────────────────────────────────
+  const showInstallBanner = (
+    !!installPrompt &&
+    !isInstalled &&
+    !isSnoozed(SNOOZE_KEY)
+  );
+
+  // Show iOS manual-install instructions on Safari when not yet installed
+  const showIosInstallBanner = (
+    isIOS() &&
+    !isInstalled &&
+    !isSnoozed(IOS_SNOOZE_KEY)
+  );
 
   return {
     isInstalled,
@@ -183,9 +233,11 @@ export function usePWA(churchId) {
     pushPermission,
     pushSubscription,
     updateAvailable,
-    showInstallBanner: !!installPrompt && !isInstalled && !installDismissed,
+    showInstallBanner,
+    showIosInstallBanner,
     promptInstall,
     dismissInstall,
+    dismissIosInstall,
     applyUpdate,
     subscribePush,
     unsubscribePush,

@@ -411,7 +411,7 @@ export default function Settings({ showToast }) {
   const [modal,    setModal]    = useState(null);
   const [activeTab, setActiveTab] = useState("general");
 
-  const { pushPermission, pushSubscription, subscribePush, unsubscribePush, isInstalled, showInstallBanner, promptInstall } = usePWA(church?.id);
+  const { pushPermission, pushSubscription, subscribePush, unsubscribePush, isInstalled, showInstallBanner, showIosInstallBanner, promptInstall, dismissInstall } = usePWA(church?.id);
   const [pushLoading, setPushLoading] = useState(false);
 
   const handleTogglePush = async () => {
