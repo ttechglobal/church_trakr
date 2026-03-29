@@ -1,6 +1,6 @@
 // src/pages/Absentees.jsx
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
-import { fmtDate } from "../lib/helpers";
+import { fmtDate, toWhatsAppNumber } from "../lib/helpers";
 import { CallIco, WaIco } from "../components/ui/Icons";
 import { Modal } from "../components/ui/Modal";
 import { sendSms } from "../services/sms";
@@ -158,7 +158,7 @@ function AbsenteeCard({ record, member, followUp, onToggleReached, onSaveNote })
   const phone     = member?.phone || record.phone || "";
   const hasPhone  = !!phone;
   const reached   = !!followUp?.reached;
-  const intlPhone = phone.replace(/\D/g, "").replace(/^0/, "234");
+  const intlPhone = toWhatsAppNumber(phone);
   const waMsg     = encodeURIComponent(`Dear ${record.name}, we missed you at service. We love you and look forward to seeing you soon! 🙏`);
 
   const handleToggle = async () => {

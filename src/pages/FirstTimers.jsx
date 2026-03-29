@@ -6,7 +6,7 @@ import { sendSms } from "../services/sms";
 import { useAuth } from "../hooks/useAuth";
 import { Modal } from "../components/ui/Modal";
 import { PlusIco, ChevL, ChevR, PhoneIco, PinIco, EditIco } from "../components/ui/Icons";
-import { getAv, fmtDate } from "../lib/helpers";
+import { getAv, fmtDate, toWhatsAppNumber } from "../lib/helpers";
 
 const CREDITS_PER_SMS = 10;
 
@@ -481,7 +481,7 @@ export default function FirstTimers({
           const statusBg    = p.daysSince <= 7 ? "#d1f5e4"        : p.daysSince <= 14 ? "#fff0cc"  : "#fce8e8";
           const statusText  = p.daysSince <= 7 ? "Recent"         : p.daysSince < 999 ? `${p.daysSince}d ago` : "New";
           const phone       = p.phone || "";
-          const intlPhone   = phone.replace(/\D/g, "").replace(/^0/, "234");
+          const intlPhone   = toWhatsAppNumber(phone);
           const waMsg       = encodeURIComponent(`Dear ${p.name}, we missed you! We'd love to see you again this Sunday 🙏`);
           return (
             <div key={p.id} style={{ background: "var(--surface)", border: "1.5px solid var(--border)", borderRadius: 14, marginBottom: 10, overflow: "hidden" }}>

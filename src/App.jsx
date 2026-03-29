@@ -378,8 +378,9 @@ function AppShell() {
     return r;
   }, [churchId, ftGroupId]);
 
-  const editFirstTimer   = useCallback(async (id, u) => { const r = await updateFirstTimer(id, u); if (!r.error && r.data) setFirstTimersRaw(p => p.map(x => x.id === id ? r.data : x)); return r; }, []);
+  const editFirstTimer   = useCallback(async (id, u) => { await ensureSession(); const r = await updateFirstTimer(id, u); if (!r.error && r.data) setFirstTimersRaw(p => p.map(x => x.id === id ? r.data : x)); return r; }, []);
   const removeFirstTimer = useCallback(async (id, name) => {
+    await ensureSession();
     const r = await deleteFirstTimer(id);
     if (!r.error) {
       setFirstTimersRaw(p => p.filter(x => x.id !== id));

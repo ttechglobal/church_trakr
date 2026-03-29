@@ -4,8 +4,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../services/supabaseClient";
+import { toWhatsAppNumber } from "../lib/helpers";
 
-const SUPER_ADMIN_EMAIL = "admin@churchtrackr.com";
+const SUPER_ADMIN_EMAIL = import.meta.env.VITE_SUPER_ADMIN_EMAIL || "admin@churchtrakr.com";
 const WHATSAPP_NUMBER   = "2348050340350"; // 234 = Nigeria country code
 
 // ─── Design tokens ─────────────────────────────────────────────────────────
@@ -804,7 +805,7 @@ function SupportMessages({ showToast }) {
           </div>
           <div style={{ display: "flex", gap: 10 }}>
             {viewMsg.churches?.phone && (
-              <a href={`https://wa.me/${viewMsg.churches.phone.replace(/\D/g,"").replace(/^0/,"234")}?text=${encodeURIComponent(`Hi ${viewMsg.churches.admin_name || ""}, thank you for reaching out to ChurchTrakr support.`)}`}
+              <a href={`https://wa.me/${toWhatsAppNumber(viewMsg.churches.phone)}?text=${encodeURIComponent(`Hi ${viewMsg.churches.admin_name || ""}, thank you for reaching out to ChurchTrakr support.`)}`}
                 target="_blank" rel="noreferrer" style={{ ...btn("#dcfce7", "#15803d", "11px 14px"), textDecoration: "none", flex: 1, justifyContent: "center" }}>
                 💚 Reply on WhatsApp
               </a>

@@ -41,14 +41,27 @@ supabase.auth.getSession().then(async ({ data: { session } }) => {
 });
 
 supabase.auth.onAuthStateChange(async (event, session) => {
-  if (!_booted) return; // let getSession handle initial load
-  if (session?.user) {
-    _user   = session.user;
-    _church = await loadChurch(session.user.id);
-  } else {
+  if (!_booted) return; // getSession() handles the initial load
+
+  if (event === "SIGNED_OUT") {
     _user   = null;
     _church = null;
+    notify();
+    return;
   }
+
+  if (!session?.user) return;
+
+  // Always keep the user object fresh (TOKEN_REFRESHED updates the JWT)
+  _user = session.user;
+
+  // Only reload church data on actual sign-in or if church is missing.
+  // TOKEN_REFRESHED fires every hour — we must NOT reload church then or we
+  // trigger a DB round-trip every hour and cause stale re-renders.
+  if (event === "SIGNED_IN" || !_church) {
+    _church = await loadChurch(session.user.id);
+  }
+
   notify();
 });
 

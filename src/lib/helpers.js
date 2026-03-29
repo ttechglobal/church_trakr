@@ -180,3 +180,25 @@ export const addOneDay = (dateStr = "") => {
 
   return dateStr; // unrecognised format — return unchanged
 };
+/**
+ * Normalise a Nigerian phone number to international format for wa.me links.
+ * Handles every format people actually store numbers in:
+ *   08012345678   → 2348012345678  (most common - 080/070/090 prefix)
+ *   8012345678    → 2348012345678  (10-digit, no leading zero)
+ *   +2348012345678→ 2348012345678  (already international with +)
+ *   2348012345678 → 2348012345678  (already correct)
+ *   0801 234 5678 → 2348012345678  (spaces)
+ * Returns empty string if the number can't be normalised.
+ */
+export const toWhatsAppNumber = (phone = "") => {
+  const d = phone.replace(/\D/g, ""); // strip everything except digits
+  if (!d) return "";
+  // Already correct international format: 234 + 10 digits = 13 digits
+  if (d.startsWith("234") && d.length === 13) return d;
+  // Nigerian local format: 0 + 10 digits = 11 digits (080xxx, 070xxx, 090xxx)
+  if (d.startsWith("0") && d.length === 11) return "234" + d.slice(1);
+  // 10-digit without leading zero (8012345678)
+  if (d.length === 10 && !d.startsWith("0")) return "234" + d;
+  // Fallback: return as-is (let wa.me handle it)
+  return d;
+};
