@@ -6,7 +6,7 @@ import { sendSms } from "../services/sms";
 import { useAuth } from "../hooks/useAuth";
 import { Modal } from "../components/ui/Modal";
 import { PlusIco, ChevL, ChevR, PhoneIco, PinIco, EditIco } from "../components/ui/Icons";
-import { getAv, fmtDate, toWhatsAppNumber } from "../lib/helpers";
+import { getAv, fmtDate, toWhatsAppNumber, handleSaveError } from "../lib/helpers";
 
 const CREDITS_PER_SMS = 10;
 
@@ -318,7 +318,7 @@ export default function FirstTimers({
     setSaving(true);
     const { error } = await withRetry(() => addFirstTimer(f));
     setSaving(false);
-    if (error) { showToast("Failed to record visitor — please try again ❌"); return; }
+    if (error) { handleSaveError(error, showToast, "Failed to record visitor"); return; }
     setAddModal(false);
     showToast("First timer recorded! ⭐");
   };
@@ -327,7 +327,7 @@ export default function FirstTimers({
     setSaving(true);
     const { error } = await withRetry(() => editFirstTimer(editPerson.id, f));
     setSaving(false);
-    if (error) { showToast("Failed to update — please try again ❌"); return; }
+    if (error) { handleSaveError(error, showToast, "Failed to update visitor"); return; }
     setEditPerson(null);
     showToast("Updated! ✅");
   };
@@ -342,14 +342,13 @@ export default function FirstTimers({
     setSaving(true);
     const { error } = await removeFirstTimer(id, person?.name);
     setSaving(false);
-    if (error) { showToast("Failed to delete ❌"); return; }
+    if (error) { handleSaveError(error, showToast, "Failed to delete record"); return; }
     setViewPerson(null);
     setDelConfirm(null);
     showToast("Record deleted.");
   };
 
   const handleConvert = async (person, groupId) => {
-    // Add as a full member
     const memberData = {
       name:     person.name,
       phone:    person.phone || "",
@@ -358,8 +357,7 @@ export default function FirstTimers({
       status:   "active",
     };
     const { error } = await addMember(memberData);
-    if (error) { showToast("Failed to convert ❌"); return; }
-    // Optionally delete from first timers
+    if (error) { handleSaveError(error, showToast, "Failed to convert to member"); return; }
     await removeFirstTimer(person.id);
     setViewPerson(null);
     showToast(`${person.name} is now a member! 🎉`);

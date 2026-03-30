@@ -1,7 +1,7 @@
 // src/pages/Members.jsx
 import { useState, useMemo } from "react";
 import { Modal } from "../components/ui/Modal";
-import { getAv, fmtDate, fmtBday } from "../lib/helpers";
+import { getAv, fmtDate, fmtBday, handleSaveError } from "../lib/helpers";
 import { PlusIco, SrchIco, ChevL, EditIco, TrashIco, PhoneIco, PinIco, CakeIco } from "../components/ui/Icons";
 
 // ── Shared header style ──────────────────────────────────────────────────────
@@ -310,7 +310,7 @@ export default function Members({ members, groups, attendanceHistory, addMember,
     setSaving(true);
     const { error } = await addMember({ ...data, groupIds: [], status: "active" });
     setSaving(false);
-    if (error) { showToast("❌ Failed to add member"); return; }
+    if (error) { handleSaveError(error, showToast, "Failed to add member"); return; }
     setAddModal(false);
     showToast("✅ Member added!");
   };
@@ -319,9 +319,7 @@ export default function Members({ members, groups, attendanceHistory, addMember,
     setSaving(true);
     const { data, error } = await editMember(updated.id, updated);
     setSaving(false);
-    if (error) { showToast("❌ Failed to update member"); return; }
-    // Use the returned DB data (not stale members[] state) so the profile
-    // reflects the save immediately without needing a refresh
+    if (error) { handleSaveError(error, showToast, "Failed to update member"); return; }
     setViewMember(data || updated);
     setEditingMember(false);
     showToast("✅ Member updated!");
@@ -330,7 +328,7 @@ export default function Members({ members, groups, attendanceHistory, addMember,
   const handleDelete = async () => {
     if (!viewMember) return;
     const { error } = await removeMember(viewMember.id);
-    if (error) { showToast("❌ Failed to delete member"); return; }
+    if (error) { handleSaveError(error, showToast, "Failed to delete member"); return; }
     setConfirmDelete(false);
     setViewMember(null);
     showToast("✅ Member removed");

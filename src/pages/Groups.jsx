@@ -1,7 +1,7 @@
 // src/pages/Groups.jsx
 import { useState } from "react";
 import { Modal } from "../components/ui/Modal";
-import { getAv, fmtDate, fmtBday, uid, normBirthday, addOneDay } from "../lib/helpers";
+import { getAv, fmtDate, fmtBday, uid, normBirthday, addOneDay, handleSaveError } from "../lib/helpers";
 import { PlusIco, SrchIco, TrashIco, ChevR, ChevL, UpIco, EditIco, PhoneIco, PinIco, CakeIco, SmsIco, SetIco } from "../components/ui/Icons";
 import { sendSms } from "../services/sms";
 
@@ -769,14 +769,13 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
   });
 
   const handleAdd = async ({ name, phone, address, birthday }) => {
-    // Only match existing member by phone if phone was actually entered
     const ex = phone ? members.find(m => m.phone && m.phone === phone) : null;
     if (ex) {
       const { error } = await editMember(ex.id, { groupIds: [...new Set([...(ex.groupIds || []), group.id])] });
-      if (error) { showToast("Failed to add member ❌"); return; }
+      if (error) { handleSaveError(error, showToast, "Failed to add member"); return; }
     } else {
       const { error } = await addMember({ name, phone, address, birthday, groupIds: [group.id], status: "active" });
-      if (error) { showToast("Failed to add member ❌"); return; }
+      if (error) { handleSaveError(error, showToast, "Failed to add member"); return; }
     }
     setAddModal(false); showToast("Member added! ✅");
   };
@@ -784,15 +783,14 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
     const mem = members.find(m => m.id === id);
     if (!mem) return;
     const { error } = await editMember(id, { groupIds: (mem.groupIds || []).filter(g => g !== group.id) });
-    if (error) { showToast("Failed to remove member ❌"); return; }
+    if (error) { handleSaveError(error, showToast, "Failed to remove member"); return; }
     setRemoveId(null); showToast("Member removed from group.");
   };
   const handleSaveMember = async updated => {
     setSavingMember(true);
     const { data, error } = await editMember(updated.id, updated);
     setSavingMember(false);
-    if (error) { showToast("Failed to update member ❌"); return; }
-    // Use fresh DB data, not stale members[] closure
+    if (error) { handleSaveError(error, showToast, "Failed to update member"); return; }
     setViewMember(data || updated);
     setEditingMember(false); showToast("Member updated! ✅");
   };
@@ -803,13 +801,13 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
     try {
       const { error } = await editGroup(group.id, { name: editGroupF.name.trim(), leader: editGroupF.leader.trim() });
       if (error) {
-        showToast("Failed to update group: " + (error.message || "unknown error") + " ❌");
+        handleSaveError(error, showToast, "Failed to update group");
       } else {
         setEditGroupModal(false);
         showToast("Group updated! ✅");
       }
     } catch (e) {
-      showToast("Failed to update group ❌");
+      handleSaveError(e, showToast, "Failed to update group");
     } finally {
       setSavingGroup(false);
     }
@@ -829,7 +827,7 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
           onRemoveFromGroup={() => { handleRemove(live.id); setViewMember(null); }}
           onDeleteFromSystem={async () => {
             const { error } = await removeMember(live.id);
-            if (error) { showToast("Failed to delete member ❌"); return; }
+            if (error) { handleSaveError(error, showToast, "Failed to delete member"); return; }
             setViewMember(null);
             showToast("Member deleted from system.");
           }}
@@ -1133,7 +1131,7 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
           setDeleting(true);
           const { error } = await removeMember(removeId);
           setDeleting(false);
-          if (error) { showToast("Failed to delete member ❌"); return; }
+          if (error) { handleSaveError(error, showToast, "Failed to delete member"); return; }
           setRemoveId(null);
           showToast("Member deleted from system.");
         };
@@ -1164,10 +1162,8 @@ function GroupDetail({ group, groups, members, addMember, editMember, removeMemb
           currentTemplate={bdayMsg}
           onClose={() => setBdaySettingsOpen(false)}
           onSave={async t => {
-            // Persist to DB so the template survives page reloads.
-            // Previously this only updated local state and was lost on refresh.
             const { error } = await editGroup(group.id, { bdayMsg: t });
-            if (error) { showToast("Failed to save message ❌"); return; }
+            if (error) { handleSaveError(error, showToast, "Failed to save message"); return; }
             setBdayMsg(t);
             setBdaySettingsOpen(false);
             showToast("Birthday message updated! 🎂");
@@ -1228,12 +1224,7 @@ export default function Groups({ groups, addGroup, editGroup, removeGroup, membe
     const { error } = await addGroup({ name: f.name.trim(), leader: f.leader.trim() });
     setCreating(false);
     if (error) {
-      const msg = error.message || "";
-      if (msg.includes("violates row-level") || msg.includes("permission") || msg.includes("policy")) {
-        showToast("Permission error — make sure you're signed in properly ❌");
-      } else {
-        showToast(`Failed to create group: ${msg || "unknown error"} ❌`);
-      }
+      handleSaveError(error, showToast, "Failed to create group");
       return;
     }
     setAddModal(false); setF({ name: "", leader: "" }); showToast("Group created! ✅");
@@ -1343,7 +1334,7 @@ export default function Groups({ groups, addGroup, editGroup, removeGroup, membe
                 setDeleting(true);
                 const { error } = await removeGroup(delConfirm);
                 setDeleting(false);
-                if (error) { showToast("Failed to delete ❌"); return; }
+                if (error) { handleSaveError(error, showToast, "Failed to delete group"); return; }
                 setDelConfirm(null); showToast("Group deleted.");
               }}>{deleting ? "Deleting…" : "Yes, Delete"}</button>
             </div>

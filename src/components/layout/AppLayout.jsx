@@ -5,13 +5,15 @@ import {
   HomeIco, GrpIco, MemIco, AttIco, MsgIco, SetIco, StarIco, LogoutIco,
 } from "../ui/Icons";
 
-const AbsenteesIco = () => <span style={{fontSize:18}}>📋</span>;
+const AbsenteesIco  = () => <span style={{fontSize:18}}>📋</span>;
+const AttendeesIco  = () => <span style={{fontSize:18}}>🙏</span>;
 
 const MAIN_NAV = [
   { to: "/",            label: "Home",         Icon: HomeIco },
   { to: "/groups",      label: "Groups",       Icon: GrpIco  },
   { to: "/members",     label: "Members",      Icon: MemIco  },
   { to: "/attendance",  label: "Attendance",   Icon: AttIco  },
+  { to: "/attendees",   label: "Attendees",    Icon: AttendeesIco },
   { to: "/absentees",   label: "Absentees",    Icon: AbsenteesIco },
   { to: "/firsttimers", label: "First Timers", Icon: StarIco },
   { to: "/messaging",   label: "Messaging",    Icon: MsgIco  },
@@ -20,13 +22,12 @@ const MAIN_NAV = [
 ];
 
 // Bottom nav — 5 most-used on mobile
-// Absentees replaces Groups (Groups is always accessible via sidebar)
 const BOTTOM_NAV = [
-  { to: "/",            label: "Home",      Icon: HomeIco      },
-  { to: "/attendance",  label: "Attend",    Icon: AttIco       },
-  { to: "/absentees",   label: "Absentees", Icon: AbsenteesIco },
-  { to: "/firsttimers", label: "Visitors",  Icon: StarIco      },
-  { to: "/messaging",   label: "Message",   Icon: MsgIco       },
+  { to: "/",            label: "Home",       Icon: HomeIco      },
+  { to: "/attendance",  label: "Attend",     Icon: AttIco       },
+  { to: "/attendees",   label: "Attendees",  Icon: AttendeesIco },
+  { to: "/absentees",   label: "Absentees",  Icon: AbsenteesIco },
+  { to: "/firsttimers", label: "Visitors",   Icon: StarIco      },
 ];
 
 export function AppLayout({ children }) {

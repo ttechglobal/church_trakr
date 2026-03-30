@@ -22,21 +22,31 @@ export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
 });
 
 /**
- * Ensures a valid auth session exists before making a DB call.
- * This fixes the "stuck at saving / need to refresh" bug:
+ * Ensures a valid auth session before any DB write.
  *
- * On first load, supabase.auth.getSession() is async. If a DB call
- * fires before it resolves, Supabase has no JWT to attach, RLS rejects
- * it with a permission error, and the UI gets stuck.
+ * Three outcomes:
+ *   1. Session already live → returns immediately (~1ms)
+ *   2. Session needs refresh → refreshes and returns (~200ms)
+ *   3. No session at all → throws, so callers show "please reload" immediately
+ *      rather than waiting 12s for a timeout.
  *
- * Call this before any write operation (save attendance, add member, etc.)
- * to guarantee the token is attached.
+ * This is the primary fix for "stuck at saving — need to refresh the page".
  */
 export async function ensureSession() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session) return session;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) return session;
 
-  // Session not found — try refreshing once
-  const { data: refreshed } = await supabase.auth.refreshSession();
-  return refreshed.session;
+    // No live session — try a refresh
+    const { data: refreshed, error } = await supabase.auth.refreshSession();
+    if (refreshed?.session) return refreshed.session;
+
+    // Still nothing — session is truly gone. Throw so the caller can
+    // show an immediate "please reload" message instead of waiting for timeout.
+    throw new Error("SESSION_EXPIRED");
+  } catch (err) {
+    // Re-throw SESSION_EXPIRED as-is; wrap other errors
+    if (err?.message === "SESSION_EXPIRED") throw err;
+    throw new Error("SESSION_EXPIRED");
+  }
 }

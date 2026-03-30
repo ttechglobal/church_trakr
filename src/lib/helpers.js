@@ -202,3 +202,22 @@ export const toWhatsAppNumber = (phone = "") => {
   // Fallback: return as-is (let wa.me handle it)
   return d;
 };
+
+/**
+ * Handles a Supabase write error consistently across all pages.
+ *
+ * SESSION_EXPIRED → prompts a reload immediately (no point retrying)
+ * Everything else → shows the provided fallback toast message
+ *
+ * Usage:
+ *   const { error } = await editMember(id, data);
+ *   if (error) { handleSaveError(error, showToast, "Failed to update member"); return; }
+ */
+export const handleSaveError = (error, showToast, fallbackMsg = "Could not save — please try again") => {
+  const msg = error?.message || "";
+  if (msg === "SESSION_EXPIRED" || msg.toLowerCase().includes("session")) {
+    showToast("🔄 Session expired — please reload the app");
+  } else {
+    showToast(`❌ ${fallbackMsg}`);
+  }
+};
