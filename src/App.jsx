@@ -27,7 +27,8 @@ import Absentees      from "./pages/Absentees";
 import Attendees      from "./pages/Attendees";
 import FirstTimers    from "./pages/FirstTimers";
 import Settings       from "./pages/Settings";
-import Analytics      from "./pages/Analytics";
+import Analytics        from "./pages/Analytics";
+import ReportGenerator  from "./pages/ReportGenerator";
 import MessagingHome   from "./pages/messaging/MessagingHome";
 import MessageComposer from "./pages/messaging/MessageComposer";
 import CreditsPage     from "./pages/messaging/CreditsPage";
@@ -522,6 +523,7 @@ function AppShell() {
           <Route path="/firsttimers"       element={<FirstTimers    {...shared} />} />
           <Route path="/settings"          element={<Settings       {...shared} />} />
           <Route path="/analytics"         element={<Analytics      {...shared} />} />
+          <Route path="/report"            element={<ReportGenerator {...shared} />} />
           <Route path="/messaging"         element={<MessagingHome   showToast={showToast} />} />
           <Route path="/messaging/send"    element={<MessageComposer {...shared} />} />
           <Route path="/messaging/credits" element={<CreditsPage     showToast={showToast} />} />

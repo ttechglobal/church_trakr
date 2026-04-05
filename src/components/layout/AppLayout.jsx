@@ -18,6 +18,7 @@ const MAIN_NAV = [
   { to: "/firsttimers", label: "First Timers", Icon: StarIco },
   { to: "/messaging",   label: "Messaging",    Icon: MsgIco  },
   { to: "/analytics",   label: "Analytics",    Icon: () => <span style={{fontSize:16}}>📊</span> },
+  { to: "/report",      label: "Reports",      Icon: () => <span style={{fontSize:16}}>📄</span> },
   { to: "/settings",    label: "Settings",     Icon: SetIco  },
 ];
 
