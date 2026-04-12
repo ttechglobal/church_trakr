@@ -147,9 +147,8 @@ export const saveAttendanceSession = async (session) => {
   }
 };
 
-// ── FOLLOW-UP (Absentee tracking) — persisted to Supabase ────────────────────
-// Stored in the churches table as a JSONB column `follow_up_data`.
-// Falls back gracefully if the column doesn't exist yet.
+// ── ABSENTEE FOLLOW-UP ────────────────────────────────────────────────────────
+// Stored in churches.follow_up_data (JSONB)
 // Schema: { [sessionId_memberId]: { reached: bool, note: string, updatedAt: string } }
 
 export const fetchFollowUpData = async (churchId) => {
@@ -161,7 +160,6 @@ export const fetchFollowUpData = async (churchId) => {
       .single();
 
     if (error) {
-      console.warn("[followup] fetch failed, using localStorage:", error.message);
       try { return JSON.parse(localStorage.getItem("ct_followup") || "{}"); } catch { return {}; }
     }
 
@@ -178,16 +176,18 @@ export const saveFollowUpData = async (churchId, data) => {
       .from("churches")
       .update({ follow_up_data: data })
       .eq("id", churchId);
-    if (error) console.warn("[followup] save to DB failed:", error.message);
+    if (error) console.warn("[followup] save failed:", error.message);
   } catch (e) {
     console.warn("[followup] save unexpected:", e);
   }
 };
 
-// ── ATTENDEE FOLLOW-UP (Thank-you tracking) ───────────────────────────────────
-// Uses a separate column `attendee_followup_data` so absentee and attendee
-// tracking never collide. Falls back to localStorage if column doesn't exist.
-// Run this SQL once: ALTER TABLE churches ADD COLUMN IF NOT EXISTS attendee_followup_data jsonb DEFAULT '{}';
+// ── ATTENDEE FOLLOW-UP ────────────────────────────────────────────────────────
+// Stored in churches.attendee_followup_data (JSONB) — separate from absentee data.
+// Schema: { [att_sessionId_memberId]: { messaged: bool, updatedAt: string } }
+//
+// Run once in Supabase SQL editor:
+//   ALTER TABLE churches ADD COLUMN IF NOT EXISTS attendee_followup_data jsonb DEFAULT '{}';
 
 export const fetchAttendeeFollowUp = async (churchId) => {
   try {
@@ -198,7 +198,7 @@ export const fetchAttendeeFollowUp = async (churchId) => {
       .single();
 
     if (error) {
-      // Column not created yet — fall back to localStorage silently
+      // Column may not exist yet — fall back to localStorage silently
       try { return JSON.parse(localStorage.getItem("ct_att_followup") || "{}"); } catch { return {}; }
     }
 
@@ -215,7 +215,7 @@ export const saveAttendeeFollowUp = async (churchId, data) => {
       .from("churches")
       .update({ attendee_followup_data: data })
       .eq("id", churchId);
-    if (error) console.warn("[att-followup] save to DB failed:", error.message);
+    if (error) console.warn("[att-followup] save failed:", error.message);
   } catch (e) {
     console.warn("[att-followup] save unexpected:", e);
   }

@@ -15,25 +15,24 @@ import {
   fetchFtAttendance, saveFtAttendance,
 } from "./services/api";
 
-import LandingPage    from "./pages/LandingPage";
-import LoginPage      from "./pages/LoginPage";
-import SignupPage     from "./pages/SignupPage";
-import ForgotPage     from "./pages/ForgotPage";
-import Dashboard      from "./pages/Dashboard";
-import Groups         from "./pages/Groups";
-import Members        from "./pages/Members";
-import Attendance     from "./pages/Attendance";
-import Absentees      from "./pages/Absentees";
-import Attendees      from "./pages/Attendees";
-import FirstTimers    from "./pages/FirstTimers";
-import Settings       from "./pages/Settings";
+import LandingPage      from "./pages/LandingPage";
+import LoginPage        from "./pages/LoginPage";
+import SignupPage       from "./pages/SignupPage";
+import ForgotPage       from "./pages/ForgotPage";
+import Dashboard        from "./pages/Dashboard";
+import Groups           from "./pages/Groups";
+import Members          from "./pages/Members";
+import Attendance       from "./pages/Attendance";
+import Absentees        from "./pages/Absentees";
+import FirstTimers      from "./pages/FirstTimers";
+import Settings         from "./pages/Settings";
 import Analytics        from "./pages/Analytics";
 import ReportGenerator  from "./pages/ReportGenerator";
-import MessagingHome   from "./pages/messaging/MessagingHome";
-import MessageComposer from "./pages/messaging/MessageComposer";
-import CreditsPage     from "./pages/messaging/CreditsPage";
-import MessageHistory  from "./pages/messaging/MessageHistory";
-import SuperAdmin      from "./pages/SuperAdmin";
+import MessagingHome    from "./pages/messaging/MessagingHome";
+import MessageComposer  from "./pages/messaging/MessageComposer";
+import CreditsPage      from "./pages/messaging/CreditsPage";
+import MessageHistory   from "./pages/messaging/MessageHistory";
+import SuperAdmin       from "./pages/SuperAdmin";
 
 // ── Loading screen ────────────────────────────────────────────────────────────
 function LoadingScreen() {
@@ -43,7 +42,6 @@ function LoadingScreen() {
       alignItems: "center", justifyContent: "center", gap: 20,
       background: "linear-gradient(150deg, #1a3a2a 0%, #2d5a42 60%, #1e4a34 100%)",
     }}>
-      {/* Logo */}
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{
           width: 44, height: 44, borderRadius: 13,
@@ -57,7 +55,6 @@ function LoadingScreen() {
           ChurchTrakr
         </span>
       </div>
-      {/* Spinner */}
       <div style={{
         width: 28, height: 28,
         border: "2.5px solid rgba(255,255,255,.12)",
@@ -70,7 +67,7 @@ function LoadingScreen() {
   );
 }
 
-// ── Banner component ─────────────────────────────────────────────────────────
+// ── Banner component ──────────────────────────────────────────────────────────
 function Banner({ icon, title, subtitle, primaryAction, primaryLabel, secondaryAction, secondaryLabel, gradient }) {
   return (
     <div style={{
@@ -190,9 +187,6 @@ function AppShell() {
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
-  // Lightweight attendance-only refresh — used by the Attendance page on mount
-  // so data is always fresh when the user navigates to that page.
-  // Does NOT show the global loading bar (no setDataLoading) to avoid flicker.
   const refreshAttendance = useCallback(async () => {
     try {
       const a = await fetchAttendance(churchId);
@@ -205,8 +199,6 @@ function AppShell() {
     } catch {}
   }, [churchId]);
 
-  // Notify all other admins on this account when someone marks attendance.
-  // Fire-and-forget — never block the UI.
   const notifyAttendanceMarked = useCallback(async (groupName, presentCount, totalCount) => {
     try {
       const fnUrl = import.meta.env.VITE_SUPABASE_URL
@@ -218,23 +210,15 @@ function AppShell() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          // Use anon key for client calls — edge function validates with cron secret for cron,
-          // but for client-triggered notifications we pass the auth token instead
           "Authorization": `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ""}`,
         },
         body: JSON.stringify({
-          type:        "attendance_marked",
-          church_id:   churchId,
-          church_name: church?.name || "",
-          group_name:  groupName,
-          marked_by:   adminName,
-          present:     presentCount,
-          total:       totalCount,
+          type: "attendance_marked", church_id: churchId,
+          church_name: church?.name || "", group_name: groupName,
+          marked_by: adminName, present: presentCount, total: totalCount,
         }),
       });
-    } catch {
-      // Notifications are non-critical — silently fail
-    }
+    } catch {}
   }, [churchId, church]);
 
   useEffect(() => {
@@ -251,26 +235,14 @@ function AppShell() {
   }, [loadAll]);
 
   // ── CRUD helpers ──────────────────────────────────────────────────────────
-  // ── Shared session guard ──────────────────────────────────────────────────
-  // Wraps ensureSession so that any write that can't get a valid session
-  // immediately returns a SESSION_EXPIRED error instead of silently failing.
-  const withSession = useCallback(async (fn) => {
-    try {
-      await ensureSession();
-    } catch {
-      return { data: null, error: { message: "SESSION_EXPIRED" } };
-    }
-    return fn();
-  }, []);
+  const addGroup    = useCallback(async g    => { await ensureSession(); const r = await createGroup({ ...g, church_id: churchId }); if (!r.error && r.data) setGroupsRaw(p => [...p, r.data]); return r; }, [churchId]);
+  const editGroup   = useCallback(async (id, u) => { await ensureSession(); const r = await updateGroup(id, u); if (!r.error && r.data) setGroupsRaw(p => p.map(x => x.id === id ? r.data : x)); return r; }, []);
+  const removeGroup = useCallback(async id  => { await ensureSession(); const r = await deleteGroup(id); if (!r.error) setGroupsRaw(p => p.filter(x => x.id !== id)); return r; }, []);
 
-  const addGroup    = useCallback(async g    => withSession(() => createGroup({ ...g, church_id: churchId }).then(r => { if (!r.error && r.data) setGroupsRaw(p => [...p, r.data]); return r; })), [churchId, withSession]);
-  const editGroup   = useCallback(async (id, u) => withSession(() => updateGroup(id, u).then(r => { if (!r.error && r.data) setGroupsRaw(p => p.map(x => x.id === id ? r.data : x)); return r; })), [withSession]);
-  const removeGroup = useCallback(async id  => withSession(() => deleteGroup(id).then(r => { if (!r.error) setGroupsRaw(p => p.filter(x => x.id !== id)); return r; })), [withSession]);
-
-  const addMember      = useCallback(async m    => withSession(() => createMember({ ...m, church_id: churchId }).then(r => { if (!r.error && r.data) setMembersRaw(p => [...p, r.data]); return r; })), [churchId, withSession]);
-  const bulkAddMembers = useCallback(async ms   => withSession(() => createMembersBulk(ms.map(m => ({ ...m, church_id: churchId }))).then(r => { if (!r.error && r.data) setMembersRaw(p => [...p, ...r.data]); return r; })), [churchId, withSession]);
-  const editMember     = useCallback(async (id, u) => withSession(() => updateMember(id, u).then(r => { if (!r.error && r.data) setMembersRaw(p => p.map(x => x.id === id ? r.data : x)); return r; })), [withSession]);
-  const removeMember   = useCallback(async id  => withSession(() => deleteMember(id).then(r => { if (!r.error) setMembersRaw(p => p.filter(x => x.id !== id)); return r; })), [withSession]);
+  const addMember      = useCallback(async m    => { await ensureSession(); const r = await createMember({ ...m, church_id: churchId }); if (!r.error && r.data) setMembersRaw(p => [...p, r.data]); return r; }, [churchId]);
+  const bulkAddMembers = useCallback(async ms   => { await ensureSession(); const r = await createMembersBulk(ms.map(m => ({ ...m, church_id: churchId }))); if (!r.error && r.data) setMembersRaw(p => [...p, ...r.data]); return r; }, [churchId]);
+  const editMember     = useCallback(async (id, u) => { await ensureSession(); const r = await updateMember(id, u); if (!r.error && r.data) setMembersRaw(p => p.map(x => x.id === id ? r.data : x)); return r; }, []);
+  const removeMember   = useCallback(async id  => { await ensureSession(); const r = await deleteMember(id); if (!r.error) setMembersRaw(p => p.filter(x => x.id !== id)); return r; }, []);
 
   // ── Offline queue ─────────────────────────────────────────────────────────
   const OFFLINE_KEY = "churchtrakr_offline_attendance";
@@ -320,15 +292,7 @@ function AppShell() {
   }, [flushOfflineQueue]);
 
   const saveAttendance = useCallback(async session => {
-    // ensureSession throws SESSION_EXPIRED if no valid session can be obtained.
-    // Catching it here means the save fails immediately with a clear message
-    // rather than proceeding, hitting an RLS error, and waiting 12 seconds.
-    try {
-      await ensureSession();
-    } catch (err) {
-      return { data: null, error: { message: "SESSION_EXPIRED" } };
-    }
-
+    await ensureSession();
     let r = await saveAttendanceSession({ ...session, church_id: churchId });
     if (r.error) {
       const msg = (r.error?.message || "").toLowerCase();
@@ -336,7 +300,6 @@ function AppShell() {
                         msg.includes("permission") || msg.includes("policy") ||
                         msg.includes("401") || msg.includes("403");
       if (isAuthErr) {
-        // One more attempt after a fresh token
         await supabase.auth.refreshSession();
         r = await saveAttendanceSession({ ...session, church_id: churchId });
       }
@@ -375,9 +338,7 @@ function AppShell() {
   }, [churchId, getOfflineQueue]);
 
   const addFirstTimer = useCallback(async ft => {
-    try { await ensureSession(); } catch {
-      return { data: null, error: { message: "SESSION_EXPIRED" } };
-    }
+    await ensureSession();
     const r = await createFirstTimer({ ...ft, church_id: churchId });
     if (!r.error && r.data) {
       setFirstTimersRaw(p => [r.data, ...p]);
@@ -403,9 +364,9 @@ function AppShell() {
     return r;
   }, [churchId, ftGroupId]);
 
-  const editFirstTimer   = useCallback(async (id, u) => withSession(() => updateFirstTimer(id, u).then(r => { if (!r.error && r.data) setFirstTimersRaw(p => p.map(x => x.id === id ? r.data : x)); return r; })), [withSession]);
+  const editFirstTimer   = useCallback(async (id, u) => { const r = await updateFirstTimer(id, u); if (!r.error && r.data) setFirstTimersRaw(p => p.map(x => x.id === id ? r.data : x)); return r; }, []);
   const removeFirstTimer = useCallback(async (id, name) => {
-    const r = await withSession(() => deleteFirstTimer(id));
+    const r = await deleteFirstTimer(id);
     if (!r.error) {
       setFirstTimersRaw(p => p.filter(x => x.id !== id));
       if (ftGroupId && name) {
@@ -459,7 +420,6 @@ function AppShell() {
   return (
     <>
       <AppLayout>
-        {/* ── Banners ── */}
         {showPushPrompt && (
           <Banner
             icon="🔔" title="Enable notifications"
@@ -483,8 +443,6 @@ function AppShell() {
             secondaryAction={dismissInstall} secondaryLabel="Later"
           />
         )}
-
-        {/* iOS Safari: no beforeinstallprompt, show manual instructions instead */}
         {showIosInstallBanner && !showInstallBanner && (
           <Banner
             icon="📲" title="Install ChurchTrakr on your iPhone"
@@ -494,7 +452,6 @@ function AppShell() {
           />
         )}
 
-        {/* ── Error banner ── */}
         {dataError && (
           <div style={{
             background: "#fef2f2", borderBottom: "2px solid #fecaca",
@@ -510,7 +467,6 @@ function AppShell() {
           </div>
         )}
 
-        {/* ── Progress bar ── */}
         {dataLoading && <div className="progress-bar" />}
 
         <Routes>
@@ -519,7 +475,6 @@ function AppShell() {
           <Route path="/members"           element={<Members        {...shared} />} />
           <Route path="/attendance"        element={<Attendance     {...shared} />} />
           <Route path="/absentees"         element={<Absentees      {...shared} />} />
-          <Route path="/attendees"         element={<Attendees      {...shared} />} />
           <Route path="/firsttimers"       element={<FirstTimers    {...shared} />} />
           <Route path="/settings"          element={<Settings       {...shared} />} />
           <Route path="/analytics"         element={<Analytics      {...shared} />} />
